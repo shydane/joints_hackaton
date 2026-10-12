@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import OpenAI from 'openai';
 
 const client = new OpenAI({
-  baseURL: 'http://localhost:20128/v1',
+  baseURL: 'lagi lee',
   apiKey: '', // Sesuaikan dengan API Key 9Router kamu jika butuh
   dangerouslyAllowBrowser: true
 });
