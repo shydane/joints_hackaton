@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import App from './App'
+import AppRouter from './AppRouter'
 import { AppProvider } from './context/AppContext'
 import './index.css'
 
@@ -15,7 +15,7 @@ ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <BrowserRouter>
       <AppProvider>
-        <App />
+        <AppRouter />
       </AppProvider>
     </BrowserRouter>
   </React.StrictMode>
