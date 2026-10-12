@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 
 const client = new OpenAI({
   baseURL: 'http://localhost:20128/v1',
-  apiKey: 'sk-93c451680fe62f17-2yhp7v-7c46a0bd', // Sesuaikan dengan API Key 9Router kamu jika butuh
+  apiKey: '', // Sesuaikan dengan API Key 9Router kamu jika butuh
   dangerouslyAllowBrowser: true
 });
 
