@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 
 const client = new OpenAI({
   baseURL: 'http://localhost:20128/v1',
-  apiKey: '', // Sesuaikan api key 9Router ente
+  apiKey: 'sk-93c451680fe62f17-2yhp7v-7c46a0bd', // Sesuaikan dengan API Key 9Router kamu jika butuh
   dangerouslyAllowBrowser: true
 });
 
@@ -14,17 +14,25 @@ export default function App() {
   const [loading, setLoading] = useState(false);
 
   const handleGenerate = async () => {
+    if (!prompt.trim()) return;
     setLoading(true);
     setResponse('');
+    
     try {
       const completion = await client.chat.completions.create({
         model: 'hackathon',
         messages: [{ role: 'user', content: prompt }],
       });
-      setResponse(completion.choices[0]?.message?.content || 'Tidak ada respons.');
+
+      const reply = completion.choices[0]?.message?.content;
+      if (reply && reply.trim() !== '') {
+        setResponse(reply);
+      } else {
+        setResponse('AI memberikan respon kosong. Coba klik Kirim sekali lagi.');
+      }
     } catch (error) {
       console.error('Error memanggil AI:', error);
-      setResponse(`Gagal mengambil respon dari AI: ${error.message || error}`);
+      setResponse('Gagal mengambil respon dari AI: ' + (error.message || error));
     } finally {
       setLoading(false);
     }
@@ -49,7 +57,7 @@ export default function App() {
       <h3>Tanya AI (9Router):</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '600px' }}>
         <textarea
-          rows={4}
+          rows={5}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Ketik pertanyaan atau instruksi koding di sini..."

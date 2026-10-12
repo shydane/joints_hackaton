@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import App from './App'
 import { useApp } from './context/AppContext'
-import Landing from './pages/Landing'
+import LandingPage from './pages/LandingPage'
 import Login from './pages/Login'
 import StudentLayout from './components/layout/StudentLayout'
 import StudentHome from './pages/student/StudentHome'
@@ -23,7 +23,7 @@ export default function AppRouter() {
   return (
     <Routes>
       <Route path="/ai" element={<App />} />
-      <Route path="/" element={<Landing />} />
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
 
       <Route

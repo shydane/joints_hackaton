@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:school": "vite --config vite.school.config.ts --host 0.0.0.0 --port 5174 --strictPort",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
