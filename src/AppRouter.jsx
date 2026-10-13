@@ -9,6 +9,16 @@ import ReportForm from './pages/student/ReportForm'
 import ReportResult from './pages/student/ReportResult'
 import TrackReport from './pages/student/TrackReport'
 import StudentNotifications from './pages/student/StudentNotifications'
+import GamePuzzle from './pages/student/GamePuzzle'
+import GameKata from './pages/student/GameKata'
+import GameMemori from './pages/student/GameMemori'
+import GameHitung from './pages/student/GameHitung'
+import GameHub from './pages/student/GameHub'
+import Leaderboard from './pages/student/Leaderboard'
+import GamePola from './pages/student/GamePola'
+import GameBentuk from './pages/student/GameBentuk'
+import GameSudoku from './pages/student/GameSudoku'
+import GameHanoi from './pages/student/GameHanoi'
 import TeacherLayout from './components/layout/TeacherLayout'
 import TeacherDashboard from './pages/teacher/TeacherDashboard'
 import CaseDetail from './pages/teacher/CaseDetail'
@@ -40,6 +50,16 @@ export default function AppRouter() {
           <Route path="hasil/:code" element={<ReportResult />} />
           <Route path="lacak" element={<TrackReport />} />
           <Route path="notifikasi" element={<StudentNotifications />} />
+          <Route path="permainan" element={<GameHub />} />
+          <Route path="leaderboard" element={<Leaderboard />} />
+          <Route path="game/puzzle" element={<GamePuzzle />} />
+          <Route path="game/kata" element={<GameKata />} />
+          <Route path="game/memori" element={<GameMemori />} />
+          <Route path="game/hitung" element={<GameHitung />} />
+          <Route path="game/pola" element={<GamePola />} />
+          <Route path="game/bentuk" element={<GameBentuk />} />
+          <Route path="game/sudoku" element={<GameSudoku />} />
+          <Route path="game/hanoi" element={<GameHanoi />} />
         </Route>
 
         <Route
