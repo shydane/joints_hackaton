@@ -6,6 +6,7 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
 import SunrisePath from '../../assets/illustrations/SunrisePath'
+import EmptyState from '../../assets/illustrations/EmptyState'
 
 /**
  * Halaman beranda siswa.
@@ -106,8 +107,8 @@ export default function StudentHome() {
         </div>
 
         {recentReports.length === 0 ? (
-          <Card className="text-center !py-8">
-            <p className="text-ink/30 text-sm">Belum ada laporan</p>
+          <Card className="flex flex-col items-center gap-2 text-center !py-5">
+            <EmptyState size={100} text="Belum ada laporan" />
             <Button
               variant="primary"
               size="sm"

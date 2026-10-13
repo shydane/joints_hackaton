@@ -3,6 +3,7 @@ import { BarChart3, Users, AlertTriangle, CheckCircle, TrendingUp } from 'lucide
 import { useApp } from '../../context/AppContext'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
+import EmptyState from '../../assets/illustrations/EmptyState'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend
 } from 'recharts'
@@ -84,7 +85,7 @@ export default function CounselorSummary() {
         <Card>
           <h3 className="text-sm font-bold font-heading mb-3">Kasus per Kategori</h3>
           {categoryData.length === 0 ? (
-            <p className="text-xs text-ink/30 text-center py-8">Belum ada data</p>
+            <EmptyState size={100} text="Belum ada data kasus" />
           ) : (
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
@@ -125,7 +126,7 @@ export default function CounselorSummary() {
             <Users size={16} /> Siswa Berisiko Tinggi
           </h3>
           {highRiskStudents.length === 0 ? (
-            <p className="text-xs text-ink/30 text-center py-8">Tidak ada siswa berisiko tinggi saat ini 🎉</p>
+            <EmptyState size={100} text="Tiada siswa berisiko tinggi" />
           ) : (
             <div className="flex flex-col gap-2">
               {highRiskStudents.map(r => (

@@ -21,15 +21,17 @@ export default function NotificationItem({ notification, onClick }) {
   const timeAgo = getTimeAgo(notification.createdAt)
 
   return (
-    <motion.div
+    <motion.button
+      type="button"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       onClick={onClick}
+      aria-label={`${notification.read ? 'Buka' : 'Notifikasi belum dibaca'}: ${notification.title}`}
       className={`
-        flex gap-3 p-3 rounded-xl cursor-pointer transition-colors
+        w-full text-left flex gap-3 p-3 rounded-xl cursor-pointer transition-colors
         border-l-4 ${config.accent}
         ${notification.read ? 'bg-white' : config.color}
-        hover:bg-bg
+        hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sunrise
       `}
     >
       <div className={`
@@ -51,9 +53,11 @@ export default function NotificationItem({ notification, onClick }) {
       </div>
 
       {!notification.read && (
-        <div className="w-2.5 h-2.5 bg-sunrise rounded-full flex-shrink-0 mt-1.5" />
+        <span className="flex-shrink-0 mt-0.5 rounded-full border-2 border-ink bg-sunrise px-2 py-0.5 text-[10px] font-bold text-white">
+          Baru
+        </span>
       )}
-    </motion.div>
+    </motion.button>
   )
 }
 

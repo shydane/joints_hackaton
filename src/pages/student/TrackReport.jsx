@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Search, ArrowRight } from 'lucide-react'
+import { Search, ArrowRight, PenLine } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import Input from '../../components/ui/Input'
 import Button from '../../components/ui/Button'
@@ -18,7 +18,7 @@ import EmptyState from '../../assets/illustrations/EmptyState'
 const statusLabels = {
   dikirim: 'Dikirim',
   ditinjau: 'Ditinjau',
-  pendampingan: 'Pendampingan',
+  pendampingan: 'Dalam Pendampingan',
   selesai: 'Selesai',
   eskalasi_eksternal: 'Eskalasi Eksternal',
 }
@@ -41,35 +41,55 @@ export default function TrackReport() {
 
   const myReports = currentUser ? getReportsForUser(currentUser.id, 'siswa') : []
 
-  // Auto-search jika ada code di URL
   useEffect(() => {
     const code = searchParams.get('code')
     if (code) {
-      const report = getReportByCode(code)
+      const normalizedCode = code.trim().toUpperCase()
+      setSearchCode(normalizedCode)
+      const report = getReportByCode(normalizedCode)
       if (report) {
         setSelectedReport(report)
         setSearchError('')
+      } else {
+        setSelectedReport(null)
+        setSearchError('Kode laporan tidak ditemukan. Periksa kembali kode tersebut.')
       }
+    } else {
+      setSelectedReport(null)
+      setSearchError('')
     }
   }, [searchParams, getReportByCode])
 
   const handleSearch = () => {
-    if (!searchCode.trim()) return
-    const report = getReportByCode(searchCode.trim().toUpperCase())
+    const normalizedCode = searchCode.trim().toUpperCase()
+    if (!normalizedCode) {
+      setSelectedReport(null)
+      setSearchError('Masukkan kode laporan terlebih dahulu.')
+      return
+    }
+    const report = getReportByCode(normalizedCode)
     if (report) {
       setSelectedReport(report)
       setSearchError('')
+      setSearchCode(normalizedCode)
     } else {
       setSelectedReport(null)
-      setSearchError('Kode laporan tidak ditemukan')
+      setSearchError('Kode laporan tidak ditemukan. Periksa kembali kode tersebut.')
     }
   }
+
+  const visibleNotes = selectedReport?.notes?.filter(
+    note => note.visibleToStudent === true || note.terlihatSiswa === true
+  ) || []
 
   return (
     <div className="flex flex-col gap-5">
       <div>
         <h1 className="text-lg font-bold font-heading">Lacak Laporan</h1>
-        <p className="text-xs text-ink/50 mt-1">Masukkan kode laporan atau pilih dari riwayat</p>
+        <p className="mt-1 text-xs text-ink/50">
+          Cari dengan kode laporan, atau pilih laporan dari riwayat akunmu.
+          Pencarian kode juga bisa digunakan tanpa login.
+        </p>
       </div>
 
       {/* Search bar */}
@@ -83,6 +103,9 @@ export default function TrackReport() {
           }}
           error={searchError}
           className="flex-1"
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') handleSearch()
+          }}
         />
         <Button variant="primary" onClick={handleSearch} icon={Search} className="!px-3">
           Cari
@@ -115,17 +138,14 @@ export default function TrackReport() {
 
             {/* Timeline */}
             <h3 className="text-sm font-bold font-heading mb-3">Status Progress</h3>
-            <Timeline
-              currentStatus={selectedReport.status}
-              notes={selectedReport.notes}
-            />
+            <Timeline currentStatus={selectedReport.status} notes={visibleNotes} />
 
             {/* Catatan dari guru */}
-            {selectedReport.notes.filter(n => n.visibleToStudent).length > 0 && (
+            {visibleNotes.length > 0 && (
               <div className="mt-4 pt-4 border-t-2 border-ink/10">
                 <h3 className="text-sm font-bold font-heading mb-3">Catatan dari Guru</h3>
                 <div className="flex flex-col gap-2">
-                  {selectedReport.notes.filter(n => n.visibleToStudent).map(note => (
+                  {visibleNotes.map(note => (
                     <Card key={note.id} color="sky-light" className="!py-2.5 !px-3">
                       <p className="text-xs font-semibold text-ink">{note.author} <span className="text-ink/40">({note.role === 'wali_kelas' ? 'Wali Kelas' : 'Guru BK'})</span></p>
                       <p className="text-xs text-ink/60 mt-1">{note.content}</p>
@@ -146,7 +166,17 @@ export default function TrackReport() {
         <h2 className="text-sm font-bold font-heading mb-3">Riwayat Laporanmu</h2>
 
         {myReports.length === 0 ? (
-          <EmptyState text="Belum ada laporan" />
+          <Card className="flex flex-col items-center gap-3 text-center">
+            <EmptyState text="Belum ada laporan" />
+            <p className="max-w-xs text-xs text-ink/50">
+              Kalau ada hal yang membuatmu khawatir, kamu bisa bercerita kepada guru yang kamu percaya.
+            </p>
+            {currentUser && (
+              <Button variant="primary" icon={PenLine} onClick={() => navigate('/siswa/lapor')}>
+                Buat Laporan
+              </Button>
+            )}
+          </Card>
         ) : (
           <div className="flex flex-col gap-2">
             {myReports.map((report, index) => (
@@ -161,6 +191,7 @@ export default function TrackReport() {
                   onClick={() => {
                     setSelectedReport(report)
                     setSearchCode(report.code)
+                    setSearchError('')
                     window.scrollTo({ top: 0, behavior: 'smooth' })
                   }}
                   className={`flex items-center gap-3 !py-3 ${selectedReport?.id === report.id ? 'ring-2 ring-sunrise' : ''}`}

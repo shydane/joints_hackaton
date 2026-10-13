@@ -59,7 +59,10 @@ export default function StudentPillNav() {
 
               {/* Badge notifikasi */}
               {isBell && unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-danger text-white text-[10px] font-bold rounded-full flex items-center justify-center border border-white">
+                <span
+                  aria-label={`${unreadCount} notifikasi belum dibaca`}
+                  className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white bg-danger px-1 text-[10px] font-bold text-white"
+                >
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}

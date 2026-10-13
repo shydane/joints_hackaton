@@ -44,7 +44,7 @@ export default function TeacherSidebar() {
       <motion.aside
         initial={false}
         animate={{ width: collapsed ? 72 : 240 }}
-        className="hidden md:flex teacher-sidebar h-screen flex-col sticky top-0 overflow-hidden z-30"
+        className="hidden md:flex teacher-sidebar h-screen shrink-0 flex-col sticky top-0 overflow-visible border-r-2 border-ink z-30"
       >
         {/* Header */}
         <div className="p-4 flex items-center gap-3 border-b-2 border-ink">
@@ -120,8 +120,11 @@ export default function TeacherSidebar() {
 
         {/* Toggle collapse */}
         <button
+          type="button"
           onClick={() => setCollapsed(!collapsed)}
-          className="absolute top-4 -right-3 w-6 h-6 bg-white border-2 border-ink rounded-full flex items-center justify-center hover:bg-bg z-10"
+          aria-label={collapsed ? 'Luaskan sidebar' : 'Ciutkan sidebar'}
+          aria-expanded={!collapsed}
+          className="absolute top-4 -right-3 z-40 flex h-6 w-6 items-center justify-center rounded-full border-2 border-ink bg-white shadow-[2px_2px_0_#14213D] transition-colors hover:bg-bg"
         >
           {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
         </button>

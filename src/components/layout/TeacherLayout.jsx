@@ -7,12 +7,12 @@ import TeacherSidebar from './TeacherSidebar'
  */
 export default function TeacherLayout() {
   return (
-    <div className="flex min-h-screen bg-bg">
+    <div className="flex min-h-screen w-full bg-bg">
       {/* Sidebar */}
       <TeacherSidebar />
 
       {/* Main content */}
-      <main className="flex-1 md:p-6 p-4 pt-16 md:pt-6 overflow-x-hidden">
+      <main className="min-w-0 flex-1 overflow-x-hidden p-4 pt-16 md:p-6 md:pt-6">
         <Outlet />
       </main>
     </div>

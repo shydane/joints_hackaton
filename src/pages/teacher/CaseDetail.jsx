@@ -3,10 +3,9 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft, CheckCircle, ArrowUpRight, MessageCircle,
-  User, Calendar, Tag, AlertTriangle
+  User, Calendar, Tag
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
-import { studentMetrics } from '../../data/studentMetrics'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -30,7 +29,7 @@ const categoryLabels = {
 const statusLabels = {
   dikirim: 'Dikirim',
   ditinjau: 'Ditinjau',
-  pendampingan: 'Pendampingan',
+  pendampingan: 'Dalam Pendampingan',
   selesai: 'Selesai',
   eskalasi_eksternal: 'Eskalasi Eksternal',
 }
@@ -38,15 +37,30 @@ const statusLabels = {
 export default function CaseDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { reports, currentUser, updateReportStatus, escalateToBK, closeCase } = useApp()
+  const {
+    reports,
+    currentUser,
+    students,
+    getNamaTampilan,
+    updateReportStatus,
+    walikelasTandaiTeratasi,
+    walikelasEskalasi,
+  } = useApp()
 
   const report = reports.find(r => r.id === id)
-  const metrics = report ? studentMetrics[report.studentId] : null
+  const studentMetrics = report
+    ? students.find(student => student.studentId === report.studentId)?.riwayatBulanan?.slice(-6) || []
+    : []
+  const gradeData = studentMetrics.map(item => ({ month: item.bulan, value: item.nilaiRataRata }))
+  const attendanceData = studentMetrics.map(item => ({ month: item.bulan, value: item.kehadiranPersen }))
 
   const [showResolveModal, setShowResolveModal] = useState(false)
   const [showEscalateModal, setShowEscalateModal] = useState(false)
   const [noteText, setNoteText] = useState('')
   const [approachNote, setApproachNote] = useState('')
+  const [approachVisible, setApproachVisible] = useState(false)
+  const [resolvedFeedback, setResolvedFeedback] = useState(false)
+  const [actionFeedback, setActionFeedback] = useState('')
 
   if (!report) {
     return (
@@ -64,38 +78,60 @@ export default function CaseDetail() {
       author: currentUser.name,
       role: 'wali_kelas',
       content: approachNote,
-      visibleToStudent: true,
+      visibleToStudent: approachVisible,
     })
     setApproachNote('')
+    setApproachVisible(false)
+    setActionFeedback('Catatan pendekatan berjaya disimpan.')
   }
 
   // Kasus teratasi → selesai
   const handleResolve = () => {
     if (!noteText.trim()) return
-    closeCase(report.id, {
-      author: currentUser.name,
-      role: 'wali_kelas',
-      content: `Kasus teratasi. ${noteText}`,
-    })
+    walikelasTandaiTeratasi(report.id, noteText.trim())
     setShowResolveModal(false)
     setNoteText('')
+    setResolvedFeedback(true)
+    window.setTimeout(() => setResolvedFeedback(false), 3500)
   }
 
   // Eskalasi ke BK
   const handleEscalate = () => {
     if (!noteText.trim()) return
-    escalateToBK(report.id, {
-      author: currentUser.name,
-      content: noteText,
-    })
+    walikelasEskalasi(report.id, noteText.trim())
     setShowEscalateModal(false)
     setNoteText('')
+    setActionFeedback('Kes telah diserahkan kepada Guru BK dan siswa telah dimaklumkan.')
   }
 
   const isActive = !['selesai', 'eskalasi_eksternal'].includes(report.status)
+    && !report.escalatedTo
+    && report.assignedTo === currentUser?.id
+  const notes = report.notes || []
 
   return (
     <div className="flex flex-col gap-5 max-w-4xl">
+      {resolvedFeedback && (
+        <motion.div
+          initial={{ opacity: 0, y: -8, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          role="status"
+          className="rounded-2xl border-2 border-ink bg-mint-light p-4 text-sm font-bold text-ink shadow-[3px_3px_0_#14213D]"
+        >
+          🎉 Kes ditandai selesai. Pelajar telah dimaklumkan dan nota kes diarkibkan kepada Guru BK.
+        </motion.div>
+      )}
+      {actionFeedback && !resolvedFeedback && (
+        <motion.p
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          role="status"
+          aria-live="polite"
+          className="rounded-2xl border-2 border-ink bg-sky-light p-3 text-xs font-semibold shadow-[2px_2px_0_#14213D]"
+        >
+          {actionFeedback}
+        </motion.p>
+      )}
       {/* Back button */}
       <button
         onClick={() => navigate('/guru')}
@@ -114,20 +150,22 @@ export default function CaseDetail() {
             {report.urgency === 'mendesak' && <Badge variant="danger">🚨 Mendesak</Badge>}
           </div>
           <p className="text-xs text-ink/50 mt-1">
-            {report.anonymous ? `🔒 ${report.studentInitials} (Anonim)` : `${report.studentName} — ${report.class}`}
+            {getNamaTampilan(report, 'wali_kelas')} — {report.class}
           </p>
         </div>
 
         {/* Action buttons */}
         {isActive && (
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-bold text-ink/70">Adakah kes selesai di kelas?</p>
+            <div className="flex flex-wrap gap-2">
             <Button
               variant="mint"
               size="sm"
               onClick={() => setShowResolveModal(true)}
               icon={CheckCircle}
             >
-              Kasus Teratasi
+              Ya, Selesaikan
             </Button>
             <Button
               variant="sunrise"
@@ -135,8 +173,9 @@ export default function CaseDetail() {
               onClick={() => setShowEscalateModal(true)}
               icon={ArrowUpRight}
             >
-              Eskalasi ke BK
+              Tidak, Eskalasi ke BK
             </Button>
+            </div>
           </div>
         )}
       </div>
@@ -170,16 +209,21 @@ export default function CaseDetail() {
         {/* Timeline Status */}
         <Card>
           <h3 className="text-sm font-bold font-heading mb-3">Status Progress</h3>
-          <Timeline currentStatus={report.status} notes={report.notes} />
+          <Timeline currentStatus={report.status} notes={notes} />
         </Card>
       </div>
 
       {/* Grafik */}
-      {metrics && (
+      {studentMetrics.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <GradeChart data={metrics.grades} />
-          <AttendanceChart data={metrics.attendance} />
+          <GradeChart data={gradeData} />
+          <AttendanceChart data={attendanceData} />
         </div>
+      ) : (
+        <Card color="sky-light">
+          <p className="text-sm font-bold">Grafik prestasi belum tersedia</p>
+          <p className="mt-1 text-xs text-ink/60">Data nilai dan kehadiran pelajar belum direkodkan.</p>
+        </Card>
       )}
 
       {/* Catat pendekatan */}
@@ -188,14 +232,22 @@ export default function CaseDetail() {
           <h3 className="text-sm font-bold font-heading mb-3 flex items-center gap-2">
             <MessageCircle size={16} /> Catat Pendekatan Personal
           </h3>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-3">
             <TextArea
               placeholder="Tulis catatan konsultasi / pendekatan dengan siswa..."
               value={approachNote}
               onChange={(e) => setApproachNote(e.target.value)}
               rows={2}
-              className="flex-1"
             />
+            <label className="flex items-center gap-2 text-xs font-semibold text-ink/70">
+              <input
+                type="checkbox"
+                checked={approachVisible}
+                onChange={(event) => setApproachVisible(event.target.checked)}
+                className="h-4 w-4 accent-sunrise"
+              />
+              Tampilkan ke siswa
+            </label>
             <Button variant="secondary" onClick={handleAddNote} disabled={!approachNote.trim()} className="self-end">
               Simpan
             </Button>
@@ -204,15 +256,18 @@ export default function CaseDetail() {
       )}
 
       {/* Riwayat Catatan */}
-      {report.notes.length > 0 && (
+      {notes.length > 0 && (
         <Card>
           <h3 className="text-sm font-bold font-heading mb-3">Riwayat Catatan</h3>
           <div className="flex flex-col gap-2">
-            {report.notes.map(note => (
+            {notes.map(note => (
               <div key={note.id} className="p-3 rounded-xl bg-bg border border-ink/10">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs font-bold">{note.author}</span>
-                  <Badge variant="default">{note.role === 'wali_kelas' ? 'Wali Kelas' : 'Guru BK'}</Badge>
+                  <Badge variant="default">{note.role === 'wali_kelas' ? 'Wali Kelas' : note.role === 'guru_bk' ? 'Guru BK' : 'Sistem'}</Badge>
+                  <Badge variant={note.visibleToStudent ? 'mint' : 'default'}>
+                    {note.visibleToStudent ? 'Dilihat siswa' : 'Arsip internal'}
+                  </Badge>
                 </div>
                 <p className="text-xs text-ink/70">{note.content}</p>
                 <p className="text-[10px] text-ink/30 mt-1">

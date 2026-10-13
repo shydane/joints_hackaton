@@ -107,6 +107,7 @@ export default function ReportForm() {
   const [step, setStep] = useState(0)
   const [direction, setDirection] = useState(1) // 1 = maju, -1 = mundur
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
   const [formData, setFormData] = useState({
     category: '',
     startDate: '',
@@ -153,6 +154,7 @@ export default function ReportForm() {
   const handleSubmit = async () => {
     if (!currentUser || submitting) return
     setSubmitting(true)
+    setSubmitError('')
     try {
       const jalur = formData.urgency === 'mendesak'
         ? 'bk'
@@ -170,9 +172,13 @@ export default function ReportForm() {
         evidence: formData.evidence || null,
       })
 
-      navigate(`/siswa/hasil/${laporan?.code || ''}`)
+      if (!laporan?.code) {
+        throw new Error('Kode laporan tidak berhasil dibuat.')
+      }
+      navigate(`/siswa/hasil/${laporan.code}`)
     } catch (err) {
       console.error('Gagal kirim laporan:', err)
+      setSubmitError('Laporan belum berhasil dikirim. Periksa koneksi dan coba lagi.')
       setSubmitting(false)
     }
   }
@@ -184,6 +190,11 @@ export default function ReportForm() {
         <h1 className="text-xl font-bold font-heading">Buat Laporan</h1>
         <p className="text-xs text-ink/40 mt-0.5">Ceritakan masalahmu — kita cari solusi bersama</p>
       </div>
+      {submitError && (
+        <p role="alert" className="rounded-xl border-2 border-danger bg-danger-light p-3 text-xs font-semibold text-danger">
+          {submitError}
+        </p>
+      )}
 
       {/* Progress Path */}
       <Card color="white" className="!py-3 !px-4">

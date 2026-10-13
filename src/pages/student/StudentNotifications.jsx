@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { Bell, CheckCheck } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useApp } from '../../context/AppContext'
 import NotificationItem from '../../components/ui/Notification'
 import Button from '../../components/ui/Button'
@@ -9,10 +10,19 @@ import EmptyState from '../../assets/illustrations/EmptyState'
  * Pusat notifikasi siswa.
  */
 export default function StudentNotifications() {
+  const navigate = useNavigate()
   const { currentUser, getNotificationsForUser, markNotificationRead, markAllNotificationsRead, getUnreadCount } = useApp()
 
   const notifications = currentUser ? getNotificationsForUser(currentUser.id) : []
   const unread = currentUser ? getUnreadCount(currentUser.id) : 0
+
+  const handleNotificationClick = (notification) => {
+    markNotificationRead(notification.id)
+    const destination = notification.reportCode
+      ? `/siswa/lacak?code=${encodeURIComponent(notification.reportCode)}`
+      : '/siswa/lacak'
+    navigate(destination)
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -49,7 +59,7 @@ export default function StudentNotifications() {
             >
               <NotificationItem
                 notification={notif}
-                onClick={() => markNotificationRead(notif.id)}
+                onClick={() => handleNotificationClick(notif)}
               />
             </motion.div>
           ))}

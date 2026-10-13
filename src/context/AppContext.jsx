@@ -213,6 +213,7 @@ export function AppProvider({ children }) {
       return {
         ...r,
         status: 'eskalasi_eksternal',
+        escalationTarget: note.target || null,
         updatedAt: now,
         notes: [
           ...r.notes,
@@ -282,7 +283,7 @@ export function AppProvider({ children }) {
       }
       case 'guru_bk':
         return reports.filter(r =>
-          r.assignedTo === userId || r.escalatedTo === userId
+          r.assignedTo === userId || r.escalatedTo === userId || r.archivedTo === userId
         )
       default:
         return []
@@ -304,8 +305,20 @@ export function AppProvider({ children }) {
     return reports.find(r => r.code === code) || null
   }, [reports])
 
-  const jalankanDeteksiDini = useCallback(() => {
-    const { newReports, newNotifications } = checkEarlyDetection(students, reports, users)
+  const jalankanDeteksiDini = useCallback((classTeacherId = null) => {
+    let studentsToCheck = students
+    if (classTeacherId) {
+      const classTeacher = users.find(user => user.id === classTeacherId && user.role === 'wali_kelas')
+      if (!classTeacher) {
+        throw new Error(`Wali kelas dengan id "${classTeacherId}" tidak ditemukan`)
+      }
+      const studentIdsInClass = users
+        .filter(user => user.role === 'siswa' && user.class === classTeacher.class)
+        .map(user => user.id)
+      studentsToCheck = students.filter(student => studentIdsInClass.includes(student.studentId))
+    }
+
+    const { newReports, newNotifications } = checkEarlyDetection(studentsToCheck, reports, users)
     if (newReports.length > 0) {
       setReports(prev => [...newReports, ...prev])
       setNotifications(prev => [...newNotifications, ...prev])
@@ -348,8 +361,8 @@ export function AppProvider({ children }) {
       startDate,
       evidence,
     })
-    return getReportByCode(code)
-  }, [createReport, getReportByCode])
+    return { code }
+  }, [createReport])
 
   const walikelasTandaiTeratasi = useCallback((reportId, solusi) => {
     closeCase(reportId, {
@@ -357,7 +370,21 @@ export function AppProvider({ children }) {
       role: 'wali_kelas',
       content: `Kasus diselesaikan oleh Wali Kelas: ${solusi}`,
     })
-  }, [closeCase, currentUser])
+    setReports(prev => prev.map(report => report.id === reportId
+      ? { ...report, archivedTo: 'bk-01' }
+      : report
+    ))
+    const report = reports.find(item => item.id === reportId)
+    if (report) {
+      addNotification(
+        'bk-01',
+        'kasus_selesai',
+        'Kes selesai di kelas',
+        `Kes ${report.code} telah diselesaikan oleh Wali Kelas dan diarkibkan untuk rujukan Guru BK.`,
+        report.code,
+      )
+    }
+  }, [addNotification, closeCase, currentUser, reports, setReports])
 
   const walikelasEskalasi = useCallback((reportId, alasan = 'Butuh pendampingan Guru BK') => {
     escalateToBK(reportId, {
@@ -366,7 +393,7 @@ export function AppProvider({ children }) {
     })
   }, [currentUser, escalateToBK])
 
-  const bkAsesmen = useCallback((reportId, catatan, jenisMasalah) => {
+  const bkAsesmen = useCallback((reportId, catatan, jenisMasalah, visibleToStudent = true) => {
     const followUpByCategory = {
       ekonomi: 'beasiswa/bantuan desa',
       bullying: 'pendampingan mental',
@@ -376,7 +403,9 @@ export function AppProvider({ children }) {
       author: currentUser?.name || 'Guru BK',
       role: 'guru_bk',
       content: catatan,
+      visibleToStudent,
     }, {
+      category: jenisMasalah,
       followUp: followUpByCategory[jenisMasalah] || 'pendampingan mental',
     })
   }, [currentUser, updateReportStatus])
@@ -388,6 +417,7 @@ export function AppProvider({ children }) {
       content: catatanEvaluasi || (positif
         ? 'Siswa menunjukkan perbaikan dan kasus dapat diselesaikan.'
         : 'Kondisi belum pulih; sesi konseling lanjutan dijadwalkan.'),
+      visibleToStudent: true,
     }
     if (positif) {
       closeCase(reportId, note)
@@ -397,10 +427,11 @@ export function AppProvider({ children }) {
     updateReportStatus(reportId, 'pendampingan', note)
   }, [addCounselingSession, closeCase, currentUser, updateReportStatus])
 
-  const bkEskalasiLanjutan = useCallback((reportId, tujuan) => {
+  const bkEskalasiLanjutan = useCallback((reportId, tujuan, catatan = '') => {
     escalateExternal(reportId, {
       author: currentUser?.name || 'Guru BK',
-      content: `Kasus dikoordinasikan ke pihak eksternal: ${tujuan}`,
+      content: `Kasus dikoordinasikan ke pihak eksternal: ${tujuan}${catatan ? `. Catatan: ${catatan}` : ''}`,
+      target: tujuan,
     })
   }, [currentUser, escalateExternal])
 
