@@ -328,6 +328,8 @@ export function AppProvider({ children }) {
     urgensi,
     jalur,
     anonim,
+    startDate = null,
+    evidence = null,
   }) => {
     const student = users.find(user => user.id === studentId)
     if (!student) {
@@ -343,6 +345,8 @@ export function AppProvider({ children }) {
       urgency: urgensi,
       channel: jalur === 'bk' ? 'guru_bk' : 'wali_kelas',
       anonymous: anonim,
+      startDate,
+      evidence,
     })
     return getReportByCode(code)
   }, [createReport, getReportByCode])
