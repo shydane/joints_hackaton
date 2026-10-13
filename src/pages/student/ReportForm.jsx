@@ -109,7 +109,7 @@ export default function ReportForm() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [formData, setFormData] = useState({
-    category: '',
+    categories: [],
     startDate: '',
     description: '',
     urgency: '',
@@ -121,7 +121,7 @@ export default function ReportForm() {
   // Validasi per step
   const canProceed = useCallback(() => {
     switch (step) {
-      case 0: return !!formData.category
+      case 0: return formData.categories.length > 0
       case 1: return !!formData.startDate
       case 2: return formData.description.trim().length >= 10
       case 3: return !!formData.urgency
@@ -162,7 +162,7 @@ export default function ReportForm() {
 
       const laporan = buatLaporan({
         studentId: currentUser.id,
-        kategori: formData.category,
+        kategori: formData.categories,
         cerita: formData.description,
         urgensi: formData.urgency,
         jalur,
@@ -215,8 +215,8 @@ export default function ReportForm() {
         >
           {step === 0 && (
             <StepCategory
-              value={formData.category}
-              onChange={(v) => setFormData(d => ({ ...d, category: v }))}
+              value={formData.categories}
+              onChange={(v) => setFormData(d => ({ ...d, categories: v }))}
             />
           )}
           {step === 1 && (
@@ -315,20 +315,28 @@ export default function ReportForm() {
 // ===================================================================
 
 function StepCategory({ value, onChange }) {
+  const toggle = (id) => {
+    onChange(
+      value.includes(id)
+        ? value.filter((v) => v !== id)
+        : [...value, id]
+    )
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div>
         <h2 className="text-lg font-bold font-heading">Apa yang sedang kamu alami?</h2>
-        <p className="text-xs text-ink/50 mt-0.5">Pilih kategori yang paling sesuai dengan situasimu</p>
+        <p className="text-xs text-ink/50 mt-0.5">Boleh pilih lebih dari satu kategori yang sesuai dengan situasimu</p>
       </div>
 
       <div className="flex flex-col gap-2.5">
         {CATEGORIES.map((cat) => {
-          const isSelected = value === cat.id
+          const isSelected = value.includes(cat.id)
           return (
             <motion.button
               key={cat.id}
-              onClick={() => onChange(cat.id)}
+              onClick={() => toggle(cat.id)}
               whileHover={{ y: -2, boxShadow: '6px 6px 0 #14213D' }}
               whileTap={{ scale: 0.98, boxShadow: '2px 2px 0 #14213D', x: 2, y: 2 }}
               className={`
@@ -346,10 +354,10 @@ function StepCategory({ value, onChange }) {
                 <p className="text-xs text-ink/50 mt-0.5 leading-snug">{cat.desc}</p>
               </div>
               <div className={`
-                w-5 h-5 rounded-full border-2 border-ink flex-shrink-0 flex items-center justify-center
+                w-5 h-5 rounded-md border-2 border-ink flex-shrink-0 flex items-center justify-center
                 ${isSelected ? 'bg-sunrise' : 'bg-white'}
               `}>
-                {isSelected && <div className="w-2 h-2 bg-white rounded-full" />}
+                {isSelected && <CheckCircle2 size={12} className="text-white" />}
               </div>
             </motion.button>
           )
@@ -692,7 +700,7 @@ function StepAnonymous({ value, onChange }) {
 }
 
 function StepReview({ formData }) {
-  const cat = CATEGORIES.find(c => c.id === formData.category)
+  const selectedCats = CATEGORIES.filter(c => formData.categories.includes(c.id))
   const urg = URGENCY_OPTIONS.find(u => u.id === formData.urgency)
   const isUrgent = formData.urgency === 'mendesak'
   const channelLabel = isUrgent
@@ -708,7 +716,16 @@ function StepReview({ formData }) {
 
       <Card className="!p-0 overflow-hidden">
         <div className="divide-y-2 divide-ink/10">
-          <ReviewRow label="Kategori" value={<span className="flex items-center gap-1.5">{cat?.emoji} {cat?.label}</span>} />
+        <ReviewRow
+  label="Kategori"
+  value={
+    <span className="flex flex-wrap gap-x-3 gap-y-1">
+      {selectedCats.map((c) => (
+        <span key={c.id} className="flex items-center gap-1.5">{c.emoji} {c.label}</span>
+      ))}
+    </span>
+  }
+/>
           <ReviewRow label="Kapan mulai" value={formData.startDate} />
           <ReviewRow label="Cerita" value={formData.description} truncate />
           <ReviewRow
