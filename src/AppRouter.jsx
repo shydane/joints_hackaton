@@ -3,6 +3,7 @@ import App from './App'
 import { useApp } from './context/AppContext'
 import LandingPage from './pages/LandingPage'
 import Login from './pages/Login'
+import StudentRegistration from './pages/StudentRegistration'
 import StudentLayout from './components/layout/StudentLayout'
 import StudentHome from './pages/student/StudentHome'
 import ReportForm from './pages/student/ReportForm'
@@ -24,6 +25,7 @@ import TeacherDashboard from './pages/teacher/TeacherDashboard'
 import CaseDetail from './pages/teacher/CaseDetail'
 import TeacherNotifications from './pages/teacher/TeacherNotifications'
 import TeacherAcademicData from './pages/teacher/TeacherAcademicData'
+import TeacherGradeAttendance from './pages/teacher/TeacherGradeAttendance'
 import CounselorDashboard from './pages/counselor/CounselorDashboard'
 import CounselorCaseDetail from './pages/counselor/CounselorCaseDetail'
 import CounselorSummary from './pages/counselor/CounselorSummary'
@@ -38,6 +40,7 @@ export default function AppRouter() {
         <Route path="/ai" element={<App />} />
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/daftar-siswa" element={<StudentRegistration />} />
         <Route path="/lacak" element={<StudentLayout />}>
           <Route index element={<TrackReport />} />
         </Route>
@@ -71,6 +74,7 @@ export default function AppRouter() {
           <Route path="kasus/:id" element={<CaseDetail />} />
           <Route path="notifikasi" element={<TeacherNotifications />} />
           <Route path="data-akademik" element={<TeacherAcademicData />} />
+          <Route path="nilai-absensi" element={<TeacherGradeAttendance />} />
         </Route>
 
         <Route

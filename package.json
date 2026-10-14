@@ -11,6 +11,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@e965/xlsx": "^0.20.3",
     "@tailwindcss/vite": "^4.3.3",
     "framer-motion": "^14.1.0",
     "lucide-react": "^1.55.0",

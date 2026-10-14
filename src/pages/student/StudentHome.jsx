@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { PenLine, Search, Bell, ArrowRight, Gamepad2, Trophy, Flame, CheckCircle2, Clock } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
+import { useLocalStorage } from '../../hooks/useLocalStorage'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -15,10 +16,29 @@ import EmptyState from '../../assets/illustrations/EmptyState'
 export default function StudentHome() {
   const navigate = useNavigate()
   const { currentUser, getReportsForUser, getUnreadCount, getStudentGameStats } = useApp()
+  const [savedGrades] = useLocalStorage('ls_manual_grade_records', [])
 
   const myReports = currentUser ? getReportsForUser(currentUser.id, 'siswa') : []
   const unreadCount = currentUser ? getUnreadCount(currentUser.id) : 0
   const gameStats = currentUser ? getStudentGameStats(currentUser.id) : null
+  const myGrades = (Array.isArray(savedGrades) ? savedGrades : [])
+    .filter(record => (
+      record.class === currentUser?.class &&
+      record.scores &&
+      Object.hasOwn(record.scores, currentUser?.id)
+    ))
+    .sort((first, second) => (
+      second.date.localeCompare(first.date) || second.updatedAt.localeCompare(first.updatedAt)
+    ))
+  const subjectSummaries = Object.values(myGrades.reduce((summary, record) => {
+    const subjectKey = record.subject.trim().toLocaleLowerCase()
+    if (!summary[subjectKey]) {
+      summary[subjectKey] = { subject: record.subject, total: 0, count: 0 }
+    }
+    summary[subjectKey].total += Number(record.scores[currentUser.id])
+    summary[subjectKey].count += 1
+    return summary
+  }, {}))
   const recentReports = myReports.slice(0, 3)
 
   const statusLabels = {
@@ -156,6 +176,54 @@ export default function StudentHome() {
           </Card>
         </motion.div>
       )}
+
+      <section aria-labelledby="student-grades-title">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 id="student-grades-title" className="text-sm font-bold font-heading">Nilai Saya</h2>
+          {myGrades.length > 0 && (
+            <span className="text-[11px] text-ink/50">{myGrades.length} nilai tercatat</span>
+          )}
+        </div>
+        {myGrades.length === 0 ? (
+          <Card className="!p-4">
+            <p className="text-xs text-ink/60">Nilai dari wali kelas akan muncul di sini setelah disimpan.</p>
+          </Card>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <Card color="sky-light" className="!p-4">
+              <h3 className="mb-2 text-xs font-bold">Rekap per mata pelajaran</h3>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {subjectSummaries.map(summary => (
+                  <div key={summary.subject.toLocaleLowerCase()} className="flex items-center justify-between gap-3 rounded-xl border border-ink/10 bg-white px-3 py-2">
+                    <span className="truncate text-xs font-semibold">{summary.subject}</span>
+                    <strong className="shrink-0 text-sm">{(summary.total / summary.count).toFixed(1)}</strong>
+                  </div>
+                ))}
+              </div>
+            </Card>
+            {myGrades.map(record => (
+              <Card key={record.id} className="!p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-xs font-bold">{record.subject}</h3>
+                    <p className="mt-1 text-[11px] text-ink/55">{record.assessment}</p>
+                    <p className="mt-1 text-[10px] text-ink/45">
+                      {new Date(`${record.date}T00:00:00`).toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      })}
+                    </p>
+                  </div>
+                  <strong className="shrink-0 rounded-lg border-2 border-ink bg-lemon-light px-3 py-1.5 text-base">
+                    {record.scores[currentUser.id]}
+                  </strong>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
 
       <motion.div
         initial={{ opacity: 0, y: 10 }}
