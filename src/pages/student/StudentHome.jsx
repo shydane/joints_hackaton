@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { PenLine, Search, Bell, ArrowRight, Clock } from 'lucide-react'
+import { PenLine, Search, Bell, ArrowRight, Gamepad2, Trophy, Flame, CheckCircle2, Clock } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
@@ -14,10 +14,11 @@ import EmptyState from '../../assets/illustrations/EmptyState'
  */
 export default function StudentHome() {
   const navigate = useNavigate()
-  const { currentUser, getReportsForUser, getUnreadCount } = useApp()
+  const { currentUser, getReportsForUser, getUnreadCount, getStudentGameStats } = useApp()
 
   const myReports = currentUser ? getReportsForUser(currentUser.id, 'siswa') : []
   const unreadCount = currentUser ? getUnreadCount(currentUser.id) : 0
+  const gameStats = currentUser ? getStudentGameStats(currentUser.id) : null
   const recentReports = myReports.slice(0, 3)
 
   const statusLabels = {
@@ -85,6 +86,96 @@ export default function StudentHome() {
               {unreadCount}
             </span>
           )}
+        </Card>
+      </motion.div>
+
+      {gameStats && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.18 }}
+        >
+          <Card className="!p-4" color="sky-light">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Trophy size={20} className="text-sunrise" />
+                <div>
+                  <h2 className="text-sm font-bold">Pencapaian Game</h2>
+                  <p className="text-[11px] text-ink/50">Skor dan aktivitasmu</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/siswa/leaderboard')}
+                className="flex items-center gap-1 text-xs font-bold text-sky"
+              >
+                Peringkat <ArrowRight size={13} />
+              </button>
+            </div>
+
+            <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-xl border border-ink/10 bg-white p-2">
+                <span className="flex items-center justify-center gap-1 text-[10px] text-ink/50"><Trophy size={12} /> Total poin</span>
+                <strong className="mt-0.5 block text-base">{gameStats.totalScore}</strong>
+              </div>
+              <div className="rounded-xl border border-ink/10 bg-white p-2">
+                <span className="flex items-center justify-center gap-1 text-[10px] text-ink/50"><Flame size={12} /> Streak</span>
+                <strong className="mt-0.5 block text-base">{gameStats.streak} hari</strong>
+              </div>
+              <div className="rounded-xl border border-ink/10 bg-white p-2">
+                <span className="flex items-center justify-center gap-1 text-[10px] text-ink/50"><CheckCircle2 size={12} /> Hari ini</span>
+                <strong className="mt-0.5 block text-base">
+                  {Object.values(gameStats.todayScores).filter(score => score !== null).length}/{Object.keys(gameStats.todayScores).length}
+                </strong>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {[
+                { id: 'puzzle', name: 'Puzzle' },
+                { id: 'kata', name: 'Game Kata' },
+                { id: 'memori', name: 'Memori' },
+                { id: 'hitung', name: 'Hitung Cepat' },
+                { id: 'pola', name: 'Pola Bilangan' },
+                { id: 'bentuk', name: 'Pola Bentuk' },
+                { id: 'sudoku', name: 'Sudoku Mini' },
+                { id: 'hanoi', name: 'Menara Hanoi' },
+              ].map(game => {
+                const score = gameStats.todayScores[game.id]
+                return (
+                  <div key={game.id} className="flex items-center justify-between rounded-lg border border-ink/10 bg-white px-2.5 py-2">
+                    <span className="truncate text-[11px] font-semibold">{game.name}</span>
+                    <span className={`flex shrink-0 items-center gap-1 text-[10px] font-bold ${score == null ? 'text-ink/35' : 'text-emerald-700'}`}>
+                      {score == null ? <Clock size={12} /> : <CheckCircle2 size={12} />}
+                      {score == null ? 'Belum' : `${score} pts`}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </Card>
+        </motion.div>
+      )}
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+      >
+        <Card
+          hoverable
+          onClick={() => navigate('/siswa/permainan')}
+          className="flex items-center gap-3 !p-4"
+          color="lemon-light"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 border-ink bg-white text-sunrise">
+            <Gamepad2 size={23} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <strong className="block text-sm">Zona Game Edukasi</strong>
+            <span className="mt-0.5 block text-xs text-ink/55">Pilih puzzle, kata, memori, hitung cepat, pola, Sudoku, atau Menara Hanoi.</span>
+          </span>
+          <ArrowRight size={18} className="shrink-0 text-ink/40" />
         </Card>
       </motion.div>
 
