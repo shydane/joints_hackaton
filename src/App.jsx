@@ -9,7 +9,7 @@ import Badge from './components/ui/Badge'
 
 const client = new OpenAI({
   baseURL: 'http://localhost:20128/v1',
-  apiKey: '', // pindahkan key ke file .env
+  apiKey: 'sk-b29212d43d945322-3q4grv-e6ada8a3', // pindahkan key ke file .env
   dangerouslyAllowBrowser: true,
 })
 

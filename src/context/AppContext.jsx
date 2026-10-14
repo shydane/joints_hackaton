@@ -6,12 +6,9 @@ import { users } from '../data/users'
 import { generateReportCode } from '../utils/generateCode'
 import { initialStudents } from '../data/students'
 import { checkEarlyDetection } from '../utils/detection'
-<<<<<<< HEAD
 import { parseAcademicCsv } from '../utils/parseAcademicCsv'
-=======
 import { initialGameScores } from '../data/gameScores'
 import { getTodayString } from '../utils/dailySeed'
->>>>>>> 4d542907a54480765702cd8b8dcf9f66b106c919
 
 const BULAN_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 const MAX_CSV_BYTES = 500 * 1024
@@ -66,11 +63,8 @@ export function AppProvider({ children }) {
   const [reports, setReports] = useLocalStorage('ls_reports', initialReports)
   const [notifications, setNotifications] = useLocalStorage('ls_notifications', initialNotifications)
   const [students, setStudents] = useLocalStorage('ls_students', initialStudents)
-<<<<<<< HEAD
   const [uploadedFiles, setUploadedFiles] = useLocalStorage('ls_uploaded_files', [])
-=======
   const [gameScores, setGameScores] = useLocalStorage('ls_game_scores', initialGameScores)
->>>>>>> 4d542907a54480765702cd8b8dcf9f66b106c919
 
   // === AUTH ===
   const login = useCallback((userId) => {
@@ -782,17 +776,13 @@ export function AppProvider({ children }) {
     .sort((left, right) => right.total - left.total), [getTotalSkor, users])
 
   // Reset data ke default (untuk demo)
-  const resetData = useCallback(() => {
+    const resetData = useCallback(() => {
     setReports(initialReports)
     setNotifications(initialNotifications)
     setStudents(initialStudents)
-<<<<<<< HEAD
     setUploadedFiles([])
-  }, [setReports, setNotifications, setStudents, setUploadedFiles])
-=======
     setGameScores(initialGameScores)
-  }, [setGameScores, setNotifications, setReports, setStudents])
->>>>>>> 4d542907a54480765702cd8b8dcf9f66b106c919
+  }, [setReports, setNotifications, setStudents, setUploadedFiles, setGameScores])
 
   const value = {
     // Auth
