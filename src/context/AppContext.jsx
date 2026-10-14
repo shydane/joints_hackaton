@@ -12,6 +12,7 @@ import { getTodayString } from '../utils/dailySeed'
 
 const BULAN_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 const MAX_CSV_BYTES = 500 * 1024
+const MAX_XLSX_BYTES = 2 * 1024 * 1024
 
 // Buat context
 const AppContext = createContext(null)
@@ -379,8 +380,12 @@ export function AppProvider({ children }) {
 
     const rawCsv = fileMeta?.rawCsv
     const rawCsvSize = typeof rawCsv === 'string' ? new Blob([rawCsv]).size : 0
-    if (fileMeta && (typeof rawCsv !== 'string' || rawCsvSize > MAX_CSV_BYTES)) {
-      throw new Error('Ukuran file CSV melebihi batas 500 KB atau file tidak dapat dibaca.')
+    if (fileMeta && (
+      typeof rawCsv !== 'string'
+      || (fileMeta.sourceType !== 'xlsx' && rawCsvSize > MAX_CSV_BYTES)
+      || (fileMeta.sourceType === 'xlsx' && fileMeta.size > MAX_XLSX_BYTES)
+    )) {
+      throw new Error('Ukuran file melebihi batas atau data tidak dapat dibaca.')
     }
 
     let diperbarui = 0
@@ -443,6 +448,8 @@ export function AppProvider({ children }) {
         {
           id: fileId,
           fileName: fileMeta.fileName,
+          originalFileName: fileMeta.originalFileName || fileMeta.fileName,
+          sourceType: fileMeta.sourceType || 'csv',
           uploadedBy: classTeacherId,
           class: classTeacher.class,
           uploadedAt,
@@ -494,6 +501,8 @@ export function AppProvider({ children }) {
     const { validRows, errors } = parseAcademicCsv(file.rawCsv, users, teacherId)
     return importDataAkademik(validRows, teacherId, {
       fileName: file.fileName,
+      originalFileName: file.originalFileName,
+      sourceType: file.sourceType,
       size: file.size,
       rawCsv: file.rawCsv,
       rowCount: validRows.length + errors.length,

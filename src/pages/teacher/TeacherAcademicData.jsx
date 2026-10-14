@@ -6,7 +6,8 @@ import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
 import Modal from '../../components/ui/Modal'
 import EmptyState from '../../assets/illustrations/EmptyState'
-import { parseAcademicCsv, parseAcademicCsvPreview } from '../../utils/parseAcademicCsv'
+import { parseAcademicCsv, parseAcademicCsvPreview, validateAcademicRows } from '../../utils/parseAcademicCsv'
+import { readAcademicXlsx } from '../../utils/parseAcademicXlsx'
 
 function escapeCsv(value) {
   const text = String(value)
@@ -33,11 +34,36 @@ export default function TeacherAcademicData() {
   const [rawCsv, setRawCsv] = useState('')
   const [previewFile, setPreviewFile] = useState(null)
   const [fileToDelete, setFileToDelete] = useState(null)
+  const [sourceType, setSourceType] = useState('')
+  const [workbookFile, setWorkbookFile] = useState(null)
+  const [sheetNames, setSheetNames] = useState([])
+  const [selectedSheetName, setSelectedSheetName] = useState('')
+  const [percentageNotice, setPercentageNotice] = useState(false)
+  const [hasPreview, setHasPreview] = useState(false)
 
   const classStudents = users.filter(user => (
     user.role === 'siswa' && user.class === currentUser?.class
   ))
   const uploadedFiles = getUploadedFilesForClass(currentUser?.class)
+
+  const processWorkbook = async (file, sheetName) => {
+    try {
+      const parsed = await readAcademicXlsx(file, { sheetName })
+      const teacher = users.find(user => user.id === currentUser?.id && user.role === 'wali_kelas')
+      const result = validateAcademicRows(parsed.rows, teacher ? { ...teacher, users } : null, parsed.headers)
+      setValidRows(result.validRows)
+      setErrors(result.errors)
+      setRawCsv(parsed.normalizedCsv)
+      setSheetNames(parsed.sheetNames)
+      setSelectedSheetName(parsed.sheetName)
+      setPercentageNotice(parsed.percentageAttendance)
+      setHasPreview(true)
+    } catch (error) {
+      console.error('Gagal membaca file Excel:', error)
+      setMessage('File Excel tidak dapat dibaca. Pastikan file .xlsx tidak rusak atau dilindungi kata sandi.')
+      setWorkbookFile(null)
+    }
+  }
 
   const handleFile = async file => {
     setValidRows([])
@@ -46,17 +72,48 @@ export default function TeacherAcademicData() {
     setMessage('')
     setFileName(file?.name || '')
     setRawCsv('')
+    setSourceType('')
+    setWorkbookFile(null)
+    setSheetNames([])
+    setSelectedSheetName('')
+    setPercentageNotice(false)
+    setHasPreview(false)
 
     if (!file) return
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      setMessage('Pilih file dengan format .csv.')
+    const lowerName = file.name.toLowerCase()
+    if (lowerName.endsWith('.xls')) {
+      setMessage('Format .xls lama tidak didukung. Simpan ulang sebagai .xlsx atau .csv.')
       return
     }
+    const detectedType = lowerName.endsWith('.xlsx')
+      ? 'xlsx'
+      : lowerName.endsWith('.csv')
+        ? 'csv'
+        : file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          ? 'xlsx'
+          : file.type === 'text/csv'
+            ? 'csv'
+            : ''
+    if (!detectedType) {
+      setMessage('Pilih file dengan format .csv atau .xlsx.')
+      return
+    }
+
+    setSourceType(detectedType)
+    if (detectedType === 'xlsx') {
+      if (file.size > 2 * 1024 * 1024) {
+        setMessage('Ukuran file Excel melebihi batas 2 MB. Pilih file yang lebih kecil.')
+        return
+      }
+      setWorkbookFile(file)
+      await processWorkbook(file)
+      return
+    }
+
     if (file.size > 500 * 1024) {
       setMessage('Ukuran file CSV melebihi batas 500 KB. Pilih file yang lebih kecil.')
       return
     }
-
     try {
       const csvText = await file.text()
       if (new Blob([csvText]).size > 500 * 1024) {
@@ -67,6 +124,7 @@ export default function TeacherAcademicData() {
       setRawCsv(csvText)
       setValidRows(result.validRows)
       setErrors(result.errors)
+      setHasPreview(true)
       if (result.validRows.length === 0 && result.errors.length === 0) {
         setMessage('Tidak ada data yang dapat dibaca dari file CSV.')
       }
@@ -101,7 +159,9 @@ export default function TeacherAcademicData() {
     try {
       const result = importDataAkademik(validRows, currentUser.id, {
         fileName,
-        size: new Blob([rawCsv]).size,
+        originalFileName: fileName,
+        sourceType,
+        size: sourceType === 'xlsx' ? workbookFile?.size : new Blob([rawCsv]).size,
         rawCsv,
         rowCount: validRows.length + errors.length,
         skippedRows: errors.length,
@@ -140,7 +200,9 @@ export default function TeacherAcademicData() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = file.fileName
+    link.download = file.sourceType === 'xlsx'
+      ? `${file.originalFileName.replace(/\.xlsx$/i, '')}.csv`
+      : file.fileName
     link.click()
     URL.revokeObjectURL(url)
   }
@@ -169,7 +231,7 @@ export default function TeacherAcademicData() {
           <div>
             <h2 className="font-bold">Templat CSV</h2>
             <p className="mt-1 text-xs text-ink/60">
-              Templat berisi siswa kelas Anda dan contoh data untuk periode berjalan.
+              Templat berisi siswa kelas Anda dan contoh data untuk periode berjalan. Excel: simpan sebagai .xlsx dengan kolom yang sama.
             </p>
           </div>
           <Button variant="outline" icon={Download} onClick={handleDownloadTemplate}>
@@ -195,12 +257,12 @@ export default function TeacherAcademicData() {
           }`}
         >
           <FileUp size={28} className="mx-auto mb-2" />
-          <p className="text-sm font-bold">Pilih atau seret file CSV ke sini</p>
+          <p className="text-sm font-bold">Pilih atau seret file CSV atau Excel (.xlsx) ke sini</p>
           <p className="mt-1 text-xs text-ink/60">Kolom wajib: student_id, periode, nilai, kehadiran.</p>
           <input
             ref={inputRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             className="sr-only"
             onChange={event => {
               handleFile(event.target.files[0])
@@ -220,12 +282,40 @@ export default function TeacherAcademicData() {
         </p>
       )}
 
-      {validRows.length > 0 && (
+      {hasPreview && (
         <Card>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="font-bold">Pratinjau data</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="font-bold">Pratinjau data</h2>
+              <Badge variant={sourceType === 'xlsx' ? 'sky' : 'default'}>{sourceType === 'xlsx' ? 'Excel' : 'CSV'}</Badge>
+              {sourceType === 'xlsx' && sheetNames.length > 1 && (
+                <label className="flex items-center gap-2 text-xs">
+                  Lembar
+                  <select
+                    value={selectedSheetName}
+                    onChange={event => {
+                      const newSheetName = event.target.value
+                      setSelectedSheetName(newSheetName)
+                      setHasPreview(false)
+                      setErrors([])
+                      setValidRows([])
+                      setPercentageNotice(false)
+                      processWorkbook(workbookFile, newSheetName)
+                    }}
+                    className="rounded-lg border-2 border-ink/30 bg-white px-2 py-1"
+                  >
+                    {sheetNames.map(name => <option key={name} value={name}>{name}</option>)}
+                  </select>
+                </label>
+              )}
+            </div>
             <Badge variant="mint">{validRows.length} baris valid</Badge>
           </div>
+          {percentageNotice && (
+            <p className="mb-3 text-xs font-semibold text-ink/70">
+              Kehadiran dibaca sebagai persen (dikali 100).
+            </p>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full min-w-[600px] text-left text-xs">
               <thead>
@@ -266,7 +356,7 @@ export default function TeacherAcademicData() {
 
       <div className="flex flex-wrap items-center gap-3">
         <Button disabled={validRows.length === 0} onClick={handleSave}>
-          Simpan ke sistem
+          Simpan ke Sistem
         </Button>
       </div>
 
@@ -311,7 +401,7 @@ export default function TeacherAcademicData() {
                       Lihat
                     </Button>
                     <Button size="sm" variant="outline" icon={Download} onClick={() => handleDownload(file)}>
-                      Unduh
+                      {file.sourceType === 'xlsx' ? 'Unduh CSV hasil konversi' : 'Unduh'}
                     </Button>
                     <Button size="sm" variant="secondary" icon={RotateCcw} onClick={() => handleReimport(file)}>
                       Impor ulang

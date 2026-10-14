@@ -92,10 +92,88 @@ export function parseAcademicCsvPreview(csvText) {
 }
 
 function parseNumber(value) {
-  const normalized = value.trim().replace(',', '.')
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  const normalized = String(value ?? '').trim().replace(',', '.')
   if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) return null
   const number = Number(normalized)
   return Number.isFinite(number) ? number : null
+}
+
+function formatPeriod(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, '0')}`
+  }
+  return String(value ?? '').trim()
+}
+
+export function validateAcademicRows(rows, classTeacher, headers = Object.keys(rows[0] || {})) {
+  const validRows = []
+  const errors = []
+  const missingColumns = REQUIRED_COLUMNS.filter(column => (
+    !headers.includes(column)
+  ))
+
+  if (missingColumns.length > 0) {
+    return {
+      validRows: [],
+      errors: [{
+        row: 1,
+        reason: `Kolom wajib tidak ditemukan: ${missingColumns.join(', ')}.`,
+      }],
+    }
+  }
+
+  rows.forEach((row, index) => {
+    const rowNumber = row._rowNumber ?? index + 2
+    const fail = reason => errors.push({ row: rowNumber, reason })
+    if (row._error) {
+      fail(row._error)
+      return
+    }
+
+    const studentId = String(row.student_id ?? '').trim()
+    const student = classTeacher?.users?.find(user => user.id === studentId)
+    if (!student) {
+      fail('ID siswa tidak ditemukan di sistem.')
+      return
+    }
+    if (student.role !== 'siswa') {
+      fail('ID tersebut bukan akun siswa.')
+      return
+    }
+    if (!classTeacher || student.class !== classTeacher.class) {
+      fail('ID siswa bukan siswa kelas Anda.')
+      return
+    }
+
+    const periode = formatPeriod(row.periode)
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periode)) {
+      fail('Periode harus menggunakan format YYYY-MM.')
+      return
+    }
+
+    const nilaiRataRata = parseNumber(row.nilai)
+    if (nilaiRataRata === null || nilaiRataRata < 0 || nilaiRataRata > 100) {
+      fail('Nilai harus berupa angka dalam rentang 0–100.')
+      return
+    }
+
+    const kehadiranPersen = parseNumber(row.kehadiran)
+    if (kehadiranPersen === null || kehadiranPersen < 0 || kehadiranPersen > 100) {
+      fail('Kehadiran harus berupa angka dalam rentang 0–100.')
+      return
+    }
+
+    validRows.push({
+      studentId,
+      periode,
+      nilaiRataRata,
+      kehadiranPersen,
+      nama: String(row.nama ?? '').trim() || student.name,
+    })
+  })
+
+  return { validRows, errors }
 }
 
 export function parseAcademicCsv(csvText, users, classTeacherId) {
@@ -111,75 +189,17 @@ export function parseAcademicCsv(csvText, users, classTeacherId) {
     return { validRows: [], errors: [{ row: 1, reason: 'File CSV kosong.' }] }
   }
 
-  const header = records[0].fields.map(value => value.trim().toLowerCase())
-  const missingColumns = REQUIRED_COLUMNS.filter(column => !header.includes(column))
-  if (missingColumns.length > 0) {
-    return {
-      validRows: [],
-      errors: [{
-        row: records[0].row,
-        reason: `Header tidak sesuai. Kolom wajib: ${REQUIRED_COLUMNS.join(', ')}.`,
-      }],
-    }
-  }
-
-  const columnIndex = Object.fromEntries(header.map((name, index) => [name, index]))
   const classTeacher = users.find(user => user.id === classTeacherId && user.role === 'wali_kelas')
-  const validRows = []
-  const errors = []
+  const headers = records[0].fields.map(value => value.trim().toLowerCase())
+  const rows = records.slice(1).map(record => ({
+    ...Object.fromEntries(headers.map((header, index) => [header, record.fields[index] ?? ''])),
+    _rowNumber: record.row,
+    _error: record.malformed
+      ? 'Format tanda kutip CSV tidak valid.'
+      : record.fields.length !== headers.length
+        ? 'Jumlah kolom pada baris tidak sesuai dengan header.'
+        : null,
+  }))
 
-  records.slice(1).forEach(record => {
-    const fail = reason => errors.push({ row: record.row, reason })
-    if (record.malformed) {
-      fail('Format tanda kutip CSV tidak valid.')
-      return
-    }
-    if (record.fields.length !== header.length) {
-      fail('Jumlah kolom pada baris tidak sesuai dengan header.')
-      return
-    }
-
-    const studentId = record.fields[columnIndex.student_id].trim()
-    const student = users.find(user => user.id === studentId)
-    if (!student) {
-      fail('ID siswa tidak ditemukan di sistem.')
-      return
-    }
-    if (student.role !== 'siswa') {
-      fail('ID tersebut bukan akun siswa.')
-      return
-    }
-    if (!classTeacher || student.class !== classTeacher.class) {
-      fail('bukan siswa kelas Anda')
-      return
-    }
-
-    const periode = record.fields[columnIndex.periode].trim()
-    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periode)) {
-      fail('Periode harus menggunakan format YYYY-MM.')
-      return
-    }
-
-    const nilaiRataRata = parseNumber(record.fields[columnIndex.nilai])
-    if (nilaiRataRata === null || nilaiRataRata < 0 || nilaiRataRata > 100) {
-      fail('Nilai harus berupa angka dalam rentang 0–100.')
-      return
-    }
-
-    const kehadiranPersen = parseNumber(record.fields[columnIndex.kehadiran])
-    if (kehadiranPersen === null || kehadiranPersen < 0 || kehadiranPersen > 100) {
-      fail('Kehadiran harus berupa angka dalam rentang 0–100.')
-      return
-    }
-
-    validRows.push({
-      studentId,
-      periode,
-      nilaiRataRata,
-      kehadiranPersen,
-      nama: columnIndex.nama === undefined ? student.name : record.fields[columnIndex.nama].trim() || student.name,
-    })
-  })
-
-  return { validRows, errors }
+  return validateAcademicRows(rows, classTeacher ? { ...classTeacher, users } : null, headers)
 }
