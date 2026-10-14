@@ -27,9 +27,9 @@ export default function StudentPillNav() {
     <motion.nav
       initial={{ y: 100 }}
       animate={{ y: 0 }}
-      className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40"
+      className="fixed bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 z-40"
     >
-      <div className="pill-nav max-w-[calc(100vw-2rem)] overflow-x-auto px-2 py-2 flex items-center gap-1">
+      <div className="pill-nav max-w-[calc(100vw-2rem)] overflow-x-auto px-2 py-2 md:px-3 md:py-2.5 flex items-center gap-1 md:gap-1.5 shadow-[4px_4px_0_#14213D]">
         {NAV_ITEMS.map(({ path, icon: Icon, label }) => {
           const isActive = location.pathname === path ||
             (path === '/siswa/permainan' && location.pathname.startsWith('/siswa/game/'))
@@ -41,8 +41,9 @@ export default function StudentPillNav() {
               key={path}
               onClick={() => navigate(path)}
               whileTap={{ scale: 0.95 }}
+              title={label}
               className={`
-                relative flex items-center gap-1.5 px-3.5 py-2 rounded-full
+                relative flex items-center gap-1.5 px-3.5 py-2 md:px-4 md:py-2 rounded-full
                 text-sm font-semibold transition-all
                 ${isActive
                   ? 'bg-sunrise text-white shadow-sm'

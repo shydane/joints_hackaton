@@ -28,7 +28,7 @@ export default function NotificationItem({ notification, onClick }) {
       onClick={onClick}
       aria-label={`${notification.read ? 'Buka' : 'Notifikasi belum dibaca'}: ${notification.title}`}
       className={`
-        w-full text-left flex gap-3 p-3 rounded-xl cursor-pointer transition-colors
+        w-full text-left flex items-start gap-3 p-3.5 rounded-xl cursor-pointer transition-colors
         border-l-4 ${config.accent}
         ${notification.read ? 'bg-white' : config.color}
         hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sunrise
@@ -53,7 +53,8 @@ export default function NotificationItem({ notification, onClick }) {
       </div>
 
       {!notification.read && (
-        <span className="flex-shrink-0 mt-0.5 rounded-full border-2 border-ink bg-sunrise px-2 py-0.5 text-[10px] font-bold text-white">
+        <span className="self-start flex-shrink-0 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sunrise text-white text-[11px] font-bold shadow-xs">
+          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
           Baru
         </span>
       )}

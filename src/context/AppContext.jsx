@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import { createContext, useContext, useCallback, useMemo } from 'react'
+=======
+import { createContext, useContext, useCallback, useEffect } from 'react'
+>>>>>>> 139cb44dcdf0f5411bb2d06bad8ed470d9191964
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { initialReports } from '../data/reports'
 import { initialNotifications } from '../data/notifications'
@@ -12,6 +16,7 @@ import { getTodayString } from '../utils/dailySeed'
 
 const BULAN_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 const MAX_CSV_BYTES = 500 * 1024
+const MAX_XLSX_BYTES = 2 * 1024 * 1024
 
 // Buat context
 const AppContext = createContext(null)
@@ -72,6 +77,21 @@ export function AppProvider({ children }) {
       ? registeredStudents.filter(user => user?.role === 'siswa' && !initialUsers.some(initial => initial.id === user.id))
       : []),
   ], [registeredStudents])
+
+  // Otomatis hapus laporan uji coba dengan kata tidak pantas atau kode dummy LS-BLKH-4
+  useEffect(() => {
+    setReports(prev => {
+      if (!Array.isArray(prev)) return prev
+      const filtered = prev.filter(r => {
+        if (!r) return false
+        if (r.code === 'LS-BLKH-4') return false
+        const text = `${r.description || ''} ${r.studentName || ''}`.toLowerCase()
+        if (text.includes('kontol') || text.includes('jancok')) return false
+        return true
+      })
+      return filtered.length !== prev.length ? filtered : prev
+    })
+  }, [setReports])
 
   // === AUTH ===
   const login = useCallback((userId) => {
@@ -330,6 +350,12 @@ export function AppProvider({ children }) {
     }
   }, [reports, setReports])
 
+  // Hapus laporan (berdasarkan ID atau Kode laporan)
+  const deleteReport = useCallback((reportIdOrCode) => {
+    setReports(prev => prev.filter(r => r.id !== reportIdOrCode && r.code !== reportIdOrCode))
+    setNotifications(prev => prev.filter(n => n.reportCode !== reportIdOrCode))
+  }, [setReports, setNotifications])
+
   // === NOTIFIKASI ===
 
   const addNotification = useCallback((userId, type, title, message, reportCode = null) => {
@@ -425,8 +451,12 @@ export function AppProvider({ children }) {
 
     const rawCsv = fileMeta?.rawCsv
     const rawCsvSize = typeof rawCsv === 'string' ? new Blob([rawCsv]).size : 0
-    if (fileMeta && (typeof rawCsv !== 'string' || rawCsvSize > MAX_CSV_BYTES)) {
-      throw new Error('Ukuran file CSV melebihi batas 500 KB atau file tidak dapat dibaca.')
+    if (fileMeta && (
+      typeof rawCsv !== 'string'
+      || (fileMeta.sourceType !== 'xlsx' && rawCsvSize > MAX_CSV_BYTES)
+      || (fileMeta.sourceType === 'xlsx' && fileMeta.size > MAX_XLSX_BYTES)
+    )) {
+      throw new Error('Ukuran file melebihi batas atau data tidak dapat dibaca.')
     }
 
     let diperbarui = 0
@@ -489,6 +519,8 @@ export function AppProvider({ children }) {
         {
           id: fileId,
           fileName: fileMeta.fileName,
+          originalFileName: fileMeta.originalFileName || fileMeta.fileName,
+          sourceType: fileMeta.sourceType || 'csv',
           uploadedBy: classTeacherId,
           class: classTeacher.class,
           uploadedAt,
@@ -540,6 +572,8 @@ export function AppProvider({ children }) {
     const { validRows, errors } = parseAcademicCsv(file.rawCsv, allUsers, teacherId)
     return importDataAkademik(validRows, teacherId, {
       fileName: file.fileName,
+      originalFileName: file.originalFileName,
+      sourceType: file.sourceType,
       size: file.size,
       rawCsv: file.rawCsv,
       rowCount: validRows.length + errors.length,
@@ -843,6 +877,7 @@ export function AppProvider({ children }) {
     // Laporan
     reports,
     createReport,
+    deleteReport,
     updateReportStatus,
     escalateToBK,
     addCounselingSession,

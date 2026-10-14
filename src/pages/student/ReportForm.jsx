@@ -184,11 +184,11 @@ export default function ReportForm() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
       {/* Header halaman */}
       <div>
-        <h1 className="text-xl font-bold font-heading">Buat Laporan</h1>
-        <p className="text-xs text-ink/40 mt-0.5">Ceritakan masalahmu — kita cari solusi bersama</p>
+        <h1 className="text-xl md:text-2xl font-bold font-heading">Buat Laporan</h1>
+        <p className="text-xs md:text-sm text-ink/50 mt-0.5">Ceritakan masalahmu — kita cari solusi bersama</p>
       </div>
       {submitError && (
         <p role="alert" className="rounded-xl border-2 border-danger bg-danger-light p-3 text-xs font-semibold text-danger">
@@ -330,7 +330,7 @@ function StepCategory({ value, onChange }) {
         <p className="text-xs text-ink/50 mt-0.5">Boleh pilih lebih dari satu kategori yang sesuai dengan situasimu</p>
       </div>
 
-      <div className="flex flex-col gap-2.5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {CATEGORIES.map((cat) => {
           const isSelected = value.includes(cat.id)
           return (
@@ -375,7 +375,7 @@ function StepWhen({ value, onChange }) {
         <p className="text-xs text-ink/50 mt-0.5">Ini membantu guru memahami seberapa lama situasi ini berlangsung</p>
       </div>
 
-      <div className="flex flex-col gap-2.5">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         {WHEN_OPTIONS.map((opt) => {
           const isSelected = value === opt
           return (
@@ -590,7 +590,7 @@ function StepChannel({ value, onChange, urgency }) {
         <p className="text-xs text-ink/50 mt-0.5">Pilih siapa yang pertama menangani laporanmu</p>
       </div>
 
-      <div className="flex flex-col gap-2.5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {[
           {
             id: 'wali_kelas',
