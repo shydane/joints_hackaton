@@ -85,7 +85,7 @@ export default function ReportResult() {
   }
 
   return (
-    <div className="relative flex flex-col items-center gap-5 pt-4">
+    <div className="relative mx-auto flex w-full max-w-lg flex-col items-center gap-5 pt-4">
       {showConfetti && <Confetti pieces={confettiPieces} />}
 
       <motion.div

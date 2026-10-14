@@ -66,7 +66,7 @@ export default function GameHub() {
       {GAME_CATEGORIES.map(category => (
         <section key={category}>
           <h2 className="mb-3 font-heading text-base font-bold">{category}</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             {scores.filter(game => game.category === category).map(game => {
               const Icon = game.icon
               const hasScore = game.score !== null

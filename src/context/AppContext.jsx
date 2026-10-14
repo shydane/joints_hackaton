@@ -1,4 +1,4 @@
-import { createContext, useContext, useCallback } from 'react'
+import { createContext, useContext, useCallback, useEffect } from 'react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { initialReports } from '../data/reports'
 import { initialNotifications } from '../data/notifications'
@@ -34,6 +34,21 @@ export function AppProvider({ children }) {
   const [notifications, setNotifications] = useLocalStorage('ls_notifications', initialNotifications)
   const [students, setStudents] = useLocalStorage('ls_students', initialStudents)
   const [gameScores, setGameScores] = useLocalStorage('ls_game_scores', initialGameScores)
+
+  // Otomatis hapus laporan uji coba dengan kata tidak pantas atau kode dummy LS-BLKH-4
+  useEffect(() => {
+    setReports(prev => {
+      if (!Array.isArray(prev)) return prev
+      const filtered = prev.filter(r => {
+        if (!r) return false
+        if (r.code === 'LS-BLKH-4') return false
+        const text = `${r.description || ''} ${r.studentName || ''}`.toLowerCase()
+        if (text.includes('kontol') || text.includes('jancok')) return false
+        return true
+      })
+      return filtered.length !== prev.length ? filtered : prev
+    })
+  }, [setReports])
 
   // === AUTH ===
   const login = useCallback((userId) => {
@@ -252,6 +267,12 @@ export function AppProvider({ children }) {
       )
     }
   }, [reports, setReports])
+
+  // Hapus laporan (berdasarkan ID atau Kode laporan)
+  const deleteReport = useCallback((reportIdOrCode) => {
+    setReports(prev => prev.filter(r => r.id !== reportIdOrCode && r.code !== reportIdOrCode))
+    setNotifications(prev => prev.filter(n => n.reportCode !== reportIdOrCode))
+  }, [setReports, setNotifications])
 
   // === NOTIFIKASI ===
 
@@ -689,6 +710,7 @@ export function AppProvider({ children }) {
     // Laporan
     reports,
     createReport,
+    deleteReport,
     updateReportStatus,
     escalateToBK,
     addCounselingSession,
