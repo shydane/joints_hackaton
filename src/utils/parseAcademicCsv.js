@@ -76,6 +76,21 @@ function parseRecords(text, delimiter) {
   return records
 }
 
+export function parseAcademicCsvPreview(csvText) {
+  const text = String(csvText || '').replace(/^\uFEFF/, '')
+  if (!text.trim()) return { headers: [], rows: [] }
+
+  const firstLine = text.split(/\r?\n/).find(line => line.trim() !== '') || ''
+  const delimiter = countDelimiters(firstLine, ';') > countDelimiters(firstLine, ',') ? ';' : ','
+  const records = parseRecords(text, delimiter)
+  const [headerRecord, ...dataRecords] = records
+
+  return {
+    headers: headerRecord?.fields || [],
+    rows: dataRecords.map(record => record.fields),
+  }
+}
+
 function parseNumber(value) {
   const normalized = value.trim().replace(',', '.')
   if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) return null

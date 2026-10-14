@@ -1,10 +1,12 @@
 import { useRef, useState } from 'react'
-import { Download, FileUp, Sparkles } from 'lucide-react'
+import { Download, Eye, FileUp, RotateCcw, Sparkles, Trash2 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
-import { parseAcademicCsv } from '../../utils/parseAcademicCsv'
+import Modal from '../../components/ui/Modal'
+import EmptyState from '../../assets/illustrations/EmptyState'
+import { parseAcademicCsv, parseAcademicCsvPreview } from '../../utils/parseAcademicCsv'
 
 function escapeCsv(value) {
   const text = String(value)
@@ -18,6 +20,9 @@ export default function TeacherAcademicData() {
     users,
     importDataAkademik,
     jalankanDeteksiDini,
+    getUploadedFilesForClass,
+    deleteUploadedFile,
+    reimportUploadedFile,
   } = useApp()
   const [validRows, setValidRows] = useState([])
   const [errors, setErrors] = useState([])
@@ -25,10 +30,14 @@ export default function TeacherAcademicData() {
   const [summary, setSummary] = useState(null)
   const [message, setMessage] = useState('')
   const [isDragging, setIsDragging] = useState(false)
+  const [rawCsv, setRawCsv] = useState('')
+  const [previewFile, setPreviewFile] = useState(null)
+  const [fileToDelete, setFileToDelete] = useState(null)
 
   const classStudents = users.filter(user => (
     user.role === 'siswa' && user.class === currentUser?.class
   ))
+  const uploadedFiles = getUploadedFilesForClass(currentUser?.class)
 
   const handleFile = async file => {
     setValidRows([])
@@ -36,15 +45,26 @@ export default function TeacherAcademicData() {
     setSummary(null)
     setMessage('')
     setFileName(file?.name || '')
+    setRawCsv('')
 
     if (!file) return
     if (!file.name.toLowerCase().endsWith('.csv')) {
       setMessage('Pilih file dengan format .csv.')
       return
     }
+    if (file.size > 500 * 1024) {
+      setMessage('Ukuran file CSV melebihi batas 500 KB. Pilih file yang lebih kecil.')
+      return
+    }
 
     try {
-      const result = parseAcademicCsv(await file.text(), users, currentUser?.id)
+      const csvText = await file.text()
+      if (new Blob([csvText]).size > 500 * 1024) {
+        setMessage('Ukuran file CSV melebihi batas 500 KB. Pilih file yang lebih kecil.')
+        return
+      }
+      const result = parseAcademicCsv(csvText, users, currentUser?.id)
+      setRawCsv(csvText)
       setValidRows(result.validRows)
       setErrors(result.errors)
       if (result.validRows.length === 0 && result.errors.length === 0) {
@@ -79,13 +99,50 @@ export default function TeacherAcademicData() {
 
   const handleSave = () => {
     try {
-      const result = importDataAkademik(validRows, currentUser.id)
-      setSummary({ ...result, dilewati: result.dilewati + errors.length })
+      const result = importDataAkademik(validRows, currentUser.id, {
+        fileName,
+        size: new Blob([rawCsv]).size,
+        rawCsv,
+        rowCount: validRows.length + errors.length,
+        skippedRows: errors.length,
+      })
+      setSummary(result)
       setMessage('Data akademik berhasil disimpan.')
     } catch (error) {
       console.error('Gagal menyimpan data akademik:', error)
-      setMessage('Data akademik gagal disimpan. Silakan coba lagi.')
+      setMessage(error.message || 'Data akademik gagal disimpan. Coba lagi.')
     }
+  }
+
+  const handleReimport = file => {
+    try {
+      reimportUploadedFile(file.id, currentUser.id)
+      setMessage(`File ${file.fileName} berhasil diimpor ulang.`)
+    } catch (error) {
+      console.error('Gagal mengimpor ulang data akademik:', error)
+      setMessage(error.message || 'File gagal diimpor ulang. Coba lagi.')
+    }
+  }
+
+  const handleDelete = () => {
+    try {
+      deleteUploadedFile(fileToDelete.id, currentUser.id)
+      setMessage(`File ${fileToDelete.fileName} dan data yang berasal darinya berhasil dihapus.`)
+      setFileToDelete(null)
+    } catch (error) {
+      console.error('Gagal menghapus unggahan data akademik:', error)
+      setMessage(error.message || 'File gagal dihapus. Coba lagi.')
+    }
+  }
+
+  const handleDownload = file => {
+    const blob = new Blob([file.rawCsv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = file.fileName
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   const handleDetection = () => {
@@ -226,6 +283,99 @@ export default function TeacherAcademicData() {
           </Button>
         </Card>
       )}
+
+      <section aria-label="Riwayat unggahan">
+        <h2 className="mb-3 text-lg font-bold font-heading">Riwayat Unggahan</h2>
+        {uploadedFiles.length === 0 ? (
+          <Card>
+            <EmptyState text="Belum ada file CSV yang diunggah" />
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {uploadedFiles.map(file => (
+              <Card key={file.id} className="!p-4">
+                <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-bold">{file.fileName}</h3>
+                    <p className="mt-1 text-xs text-ink/60">
+                      {new Date(file.uploadedAt).toLocaleString('id-ID')} · {file.rowCount} baris
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      <Badge variant="mint">Ditambahkan: {file.summary.ditambahkan}</Badge>
+                      <Badge variant="sky">Diperbarui: {file.summary.diperbarui}</Badge>
+                      <Badge variant="lemon">Dilewati: {file.summary.dilewati}</Badge>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" icon={Eye} onClick={() => setPreviewFile(file)}>
+                      Lihat
+                    </Button>
+                    <Button size="sm" variant="outline" icon={Download} onClick={() => handleDownload(file)}>
+                      Unduh
+                    </Button>
+                    <Button size="sm" variant="secondary" icon={RotateCcw} onClick={() => handleReimport(file)}>
+                      Impor ulang
+                    </Button>
+                    <Button size="sm" variant="danger" icon={Trash2} onClick={() => setFileToDelete(file)}>
+                      Hapus
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <Modal
+        isOpen={Boolean(previewFile)}
+        onClose={() => setPreviewFile(null)}
+        title={`Pratinjau: ${previewFile?.fileName || ''}`}
+        className="max-w-4xl"
+      >
+        {previewFile && (() => {
+          const { headers, rows } = parseAcademicCsvPreview(previewFile.rawCsv)
+          return (
+            <div className="overflow-x-auto">
+              {rows.length === 0 ? (
+                <p className="text-sm text-ink/60">File tidak memiliki baris data.</p>
+              ) : (
+                <table className="w-full min-w-[500px] text-left text-xs">
+                  <thead>
+                    <tr className="border-b-2 border-ink/20">
+                      {headers.map((header, index) => <th key={`${header}-${index}`} className="p-2">{header}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, rowIndex) => (
+                      <tr key={rowIndex} className="border-b border-ink/10">
+                        {headers.map((header, columnIndex) => (
+                          <td key={`${header}-${columnIndex}`} className="p-2">{row[columnIndex] || ''}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )
+        })()}
+      </Modal>
+
+      <Modal
+        isOpen={Boolean(fileToDelete)}
+        onClose={() => setFileToDelete(null)}
+        title="Hapus unggahan?"
+      >
+        <p className="text-sm leading-relaxed text-ink/70">
+          Menghapus <strong>{fileToDelete?.fileName}</strong> juga akan menghapus data nilai dan kehadiran
+          dari file ini pada riwayat siswa.
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setFileToDelete(null)}>Batal</Button>
+          <Button variant="danger" onClick={handleDelete}>Hapus file</Button>
+        </div>
+      </Modal>
     </div>
   )
 }

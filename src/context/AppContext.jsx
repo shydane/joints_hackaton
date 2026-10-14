@@ -6,11 +6,41 @@ import { users } from '../data/users'
 import { generateReportCode } from '../utils/generateCode'
 import { initialStudents } from '../data/students'
 import { checkEarlyDetection } from '../utils/detection'
+import { parseAcademicCsv } from '../utils/parseAcademicCsv'
 
 const BULAN_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+const MAX_CSV_BYTES = 500 * 1024
 
 // Buat context
 const AppContext = createContext(null)
+
+function persistAcademicData(nextStudents, nextFiles) {
+  let previousStudents
+  let previousFiles
+  try {
+    previousStudents = window.localStorage.getItem('ls_students')
+    previousFiles = window.localStorage.getItem('ls_uploaded_files')
+  } catch (error) {
+    console.warn('Gagal membaca penyimpanan data akademik:', error)
+    throw new Error('Penyimpanan browser tidak dapat diakses. Periksa pengaturan penyimpanan lalu coba lagi.')
+  }
+
+  try {
+    window.localStorage.setItem('ls_students', JSON.stringify(nextStudents))
+    window.localStorage.setItem('ls_uploaded_files', JSON.stringify(nextFiles))
+  } catch (error) {
+    try {
+      if (previousStudents === null) window.localStorage.removeItem('ls_students')
+      else window.localStorage.setItem('ls_students', previousStudents)
+      if (previousFiles === null) window.localStorage.removeItem('ls_uploaded_files')
+      else window.localStorage.setItem('ls_uploaded_files', previousFiles)
+    } catch (rollbackError) {
+      console.error('Gagal memulihkan penyimpanan data akademik:', rollbackError)
+    }
+    console.warn('Gagal menyimpan data akademik ke localStorage:', error)
+    throw new Error('Penyimpanan browser penuh. Hapus unggahan lama atau gunakan file CSV yang lebih kecil.')
+  }
+}
 
 /**
  * Provider utama aplikasi.
@@ -22,6 +52,7 @@ export function AppProvider({ children }) {
   const [reports, setReports] = useLocalStorage('ls_reports', initialReports)
   const [notifications, setNotifications] = useLocalStorage('ls_notifications', initialNotifications)
   const [students, setStudents] = useLocalStorage('ls_students', initialStudents)
+  const [uploadedFiles, setUploadedFiles] = useLocalStorage('ls_uploaded_files', [])
 
   // === AUTH ===
   const login = useCallback((userId) => {
@@ -328,19 +359,31 @@ export function AppProvider({ children }) {
     return newReports.length
   }, [students, reports, setReports, setNotifications])
 
-  const importDataAkademik = useCallback((rows, classTeacherId) => {
+  const importDataAkademik = useCallback((rows, classTeacherId, fileMeta = null) => {
     const classTeacher = users.find(user => user.id === classTeacherId && user.role === 'wali_kelas')
     if (!classTeacher) {
       throw new Error(`Wali kelas dengan id "${classTeacherId}" tidak ditemukan`)
     }
 
+    const rawCsv = fileMeta?.rawCsv
+    const rawCsvSize = typeof rawCsv === 'string' ? new Blob([rawCsv]).size : 0
+    if (fileMeta && (typeof rawCsv !== 'string' || rawCsvSize > MAX_CSV_BYTES)) {
+      throw new Error('Ukuran file CSV melebihi batas 500 KB atau file tidak dapat dibaca.')
+    }
+
     let diperbarui = 0
     let ditambahkan = 0
-    let dilewati = 0
+    let dilewati = fileMeta?.skippedRows || 0
     const updatedStudents = students.map(student => ({
       ...student,
       riwayatBulanan: [...(student.riwayatBulanan || [])],
     }))
+    let fileId = null
+    if (fileMeta) {
+      let timestamp = Date.now()
+      while (uploadedFiles.some(file => file.id === `file-${timestamp}`)) timestamp += 1
+      fileId = `file-${timestamp}`
+    }
 
     rows.forEach(row => {
       const studentUser = users.find(user => user.id === row.studentId)
@@ -362,6 +405,7 @@ export function AppProvider({ children }) {
         bulan: `${BULAN_LABELS[Number(month) - 1]} ${year}`,
         nilaiRataRata: row.nilaiRataRata,
         kehadiranPersen: row.kehadiranPersen,
+        ...(fileId ? { fileId } : {}),
       }
 
       if (existingIndex >= 0) {
@@ -379,9 +423,71 @@ export function AppProvider({ children }) {
       student.riwayatBulanan = [...legacyEntries, ...periodEntries]
     })
 
+    let nextUploadedFiles = uploadedFiles
+    if (fileMeta) {
+      const summary = { ditambahkan, diperbarui, dilewati }
+      const uploadedAt = new Date().toISOString()
+      nextUploadedFiles = [
+        {
+          id: fileId,
+          fileName: fileMeta.fileName,
+          uploadedBy: classTeacherId,
+          class: classTeacher.class,
+          uploadedAt,
+          size: fileMeta.size ?? rawCsvSize,
+          rawCsv,
+          rowCount: fileMeta.rowCount ?? rows.length + (fileMeta.skippedRows || 0),
+          summary,
+        },
+        ...uploadedFiles,
+      ]
+      persistAcademicData(updatedStudents, nextUploadedFiles)
+    }
+
     setStudents(updatedStudents)
-    return { diperbarui, ditambahkan, dilewati }
-  }, [students, setStudents])
+    if (fileMeta) setUploadedFiles(nextUploadedFiles)
+    return { diperbarui, ditambahkan, dilewati, fileId }
+  }, [students, uploadedFiles, setStudents, setUploadedFiles])
+
+  const getUploadedFilesForClass = useCallback((className) => (
+    uploadedFiles
+      .filter(file => file.class === className)
+      .sort((first, second) => new Date(second.uploadedAt) - new Date(first.uploadedAt))
+  ), [uploadedFiles])
+
+  const deleteUploadedFile = useCallback((fileId, teacherId) => {
+    const teacher = users.find(user => user.id === teacherId && user.role === 'wali_kelas')
+    const file = uploadedFiles.find(item => item.id === fileId)
+    if (!teacher || !file || file.class !== teacher.class) {
+      throw new Error('Unggahan tidak ditemukan atau Anda tidak berhak menghapusnya.')
+    }
+
+    const nextUploadedFiles = uploadedFiles.filter(item => item.id !== fileId)
+    const nextStudents = students.map(student => ({
+      ...student,
+      riwayatBulanan: (student.riwayatBulanan || []).filter(entry => entry.fileId !== fileId),
+    }))
+    persistAcademicData(nextStudents, nextUploadedFiles)
+    setStudents(nextStudents)
+    setUploadedFiles(nextUploadedFiles)
+  }, [students, uploadedFiles, setStudents, setUploadedFiles])
+
+  const reimportUploadedFile = useCallback((fileId, teacherId) => {
+    const teacher = users.find(user => user.id === teacherId && user.role === 'wali_kelas')
+    const file = uploadedFiles.find(item => item.id === fileId)
+    if (!teacher || !file || file.class !== teacher.class) {
+      throw new Error('Unggahan tidak ditemukan atau Anda tidak berhak mengimpornya.')
+    }
+
+    const { validRows, errors } = parseAcademicCsv(file.rawCsv, users, teacherId)
+    return importDataAkademik(validRows, teacherId, {
+      fileName: file.fileName,
+      size: file.size,
+      rawCsv: file.rawCsv,
+      rowCount: validRows.length + errors.length,
+      skippedRows: errors.length,
+    })
+  }, [uploadedFiles, importDataAkademik])
 
   const getNamaTampilan = useCallback((report, viewerRole) => {
     if (!report.anonymous) return report.studentName || 'Siswa'
@@ -497,7 +603,8 @@ export function AppProvider({ children }) {
     setReports(initialReports)
     setNotifications(initialNotifications)
     setStudents(initialStudents)
-  }, [setReports, setNotifications, setStudents])
+    setUploadedFiles([])
+  }, [setReports, setNotifications, setStudents, setUploadedFiles])
 
   const value = {
     // Auth
@@ -522,6 +629,10 @@ export function AppProvider({ children }) {
     getNamaTampilan,
     jalankanDeteksiDini,
     importDataAkademik,
+    uploadedFiles,
+    getUploadedFilesForClass,
+    deleteUploadedFile,
+    reimportUploadedFile,
     walikelasTandaiTeratasi,
     walikelasEskalasi,
     bkAsesmen,
