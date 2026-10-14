@@ -13,6 +13,7 @@ import TeacherLayout from './components/layout/TeacherLayout'
 import TeacherDashboard from './pages/teacher/TeacherDashboard'
 import CaseDetail from './pages/teacher/CaseDetail'
 import TeacherNotifications from './pages/teacher/TeacherNotifications'
+import TeacherAcademicData from './pages/teacher/TeacherAcademicData'
 import CounselorDashboard from './pages/counselor/CounselorDashboard'
 import CounselorCaseDetail from './pages/counselor/CounselorCaseDetail'
 import CounselorSummary from './pages/counselor/CounselorSummary'
@@ -49,6 +50,7 @@ export default function AppRouter() {
           <Route index element={<TeacherDashboard />} />
           <Route path="kasus/:id" element={<CaseDetail />} />
           <Route path="notifikasi" element={<TeacherNotifications />} />
+          <Route path="data-akademik" element={<TeacherAcademicData />} />
         </Route>
 
         <Route

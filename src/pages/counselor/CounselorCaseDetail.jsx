@@ -49,6 +49,7 @@ export default function CounselorCaseDetail() {
     : []
   const gradeData = studentHistory.map(item => ({ month: item.bulan, value: item.nilaiRataRata }))
   const attendanceData = studentHistory.map(item => ({ month: item.bulan, value: item.kehadiranPersen }))
+  const latestAcademicPeriod = [...studentHistory].reverse().find(item => item.periode)
 
   const [assessmentNote, setAssessmentNote] = useState('')
   const [selectedCategory, setSelectedCategory] = useState(report?.category || 'lainnya')
@@ -238,6 +239,11 @@ export default function CounselorCaseDetail() {
         <section aria-label="Prestasi akademik dan kehadiran" className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <GradeChart data={gradeData} />
           <AttendanceChart data={attendanceData} />
+          {latestAcademicPeriod && (
+            <p className="text-xs text-ink/60 md:col-span-2">
+              Sumber: CSV wali kelas, periode terakhir: {latestAcademicPeriod.bulan}
+            </p>
+          )}
         </section>
       ) : (
         <Card color="sky-light">

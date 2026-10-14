@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   LayoutDashboard, Bell, LogOut, Sun, User,
-  FileText, BarChart3, Users, ChevronLeft, ChevronRight
+  FileText, BarChart3, Users, ChevronLeft, ChevronRight, BookOpen
 } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import { useState } from 'react'
@@ -25,6 +25,7 @@ export default function TeacherSidebar() {
   const navItems = isWaliKelas
     ? [
         { path: basePath, icon: LayoutDashboard, label: 'Dashboard' },
+        { path: `${basePath}/data-akademik`, icon: BookOpen, label: 'Data Akademik' },
         { path: `${basePath}/notifikasi`, icon: Bell, label: 'Notifikasi', badge: unreadCount },
       ]
     : [

@@ -7,6 +7,8 @@ import { generateReportCode } from '../utils/generateCode'
 import { initialStudents } from '../data/students'
 import { checkEarlyDetection } from '../utils/detection'
 
+const BULAN_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
+
 // Buat context
 const AppContext = createContext(null)
 
@@ -326,6 +328,61 @@ export function AppProvider({ children }) {
     return newReports.length
   }, [students, reports, setReports, setNotifications])
 
+  const importDataAkademik = useCallback((rows, classTeacherId) => {
+    const classTeacher = users.find(user => user.id === classTeacherId && user.role === 'wali_kelas')
+    if (!classTeacher) {
+      throw new Error(`Wali kelas dengan id "${classTeacherId}" tidak ditemukan`)
+    }
+
+    let diperbarui = 0
+    let ditambahkan = 0
+    let dilewati = 0
+    const updatedStudents = students.map(student => ({
+      ...student,
+      riwayatBulanan: [...(student.riwayatBulanan || [])],
+    }))
+
+    rows.forEach(row => {
+      const studentUser = users.find(user => user.id === row.studentId)
+      if (studentUser?.role !== 'siswa' || studentUser.class !== classTeacher.class) {
+        dilewati += 1
+        return
+      }
+
+      let student = updatedStudents.find(item => item.studentId === row.studentId)
+      if (!student) {
+        student = { studentId: row.studentId, riwayatBulanan: [] }
+        updatedStudents.push(student)
+      }
+
+      const existingIndex = student.riwayatBulanan.findIndex(item => item.periode === row.periode)
+      const [year, month] = row.periode.split('-')
+      const entry = {
+        periode: row.periode,
+        bulan: `${BULAN_LABELS[Number(month) - 1]} ${year}`,
+        nilaiRataRata: row.nilaiRataRata,
+        kehadiranPersen: row.kehadiranPersen,
+      }
+
+      if (existingIndex >= 0) {
+        student.riwayatBulanan[existingIndex] = entry
+        diperbarui += 1
+      } else {
+        student.riwayatBulanan.push(entry)
+        ditambahkan += 1
+      }
+
+      const legacyEntries = student.riwayatBulanan.filter(item => !item.periode)
+      const periodEntries = student.riwayatBulanan
+        .filter(item => item.periode)
+        .sort((first, second) => first.periode.localeCompare(second.periode))
+      student.riwayatBulanan = [...legacyEntries, ...periodEntries]
+    })
+
+    setStudents(updatedStudents)
+    return { diperbarui, ditambahkan, dilewati }
+  }, [students, setStudents])
+
   const getNamaTampilan = useCallback((report, viewerRole) => {
     if (!report.anonymous) return report.studentName || 'Siswa'
     if ((viewerRole === 'guru_bk' || viewerRole === 'bk') && report.urgency === 'mendesak') {
@@ -464,6 +521,7 @@ export function AppProvider({ children }) {
     buatLaporan,
     getNamaTampilan,
     jalankanDeteksiDini,
+    importDataAkademik,
     walikelasTandaiTeratasi,
     walikelasEskalasi,
     bkAsesmen,
