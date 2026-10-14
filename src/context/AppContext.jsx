@@ -6,13 +6,27 @@ import { users } from '../data/users'
 import { generateReportCode } from '../utils/generateCode'
 import { initialStudents } from '../data/students'
 import { checkEarlyDetection } from '../utils/detection'
+<<<<<<< HEAD
 import { parseAcademicCsv } from '../utils/parseAcademicCsv'
+=======
+import { initialGameScores } from '../data/gameScores'
+import { getTodayString } from '../utils/dailySeed'
+>>>>>>> 4d542907a54480765702cd8b8dcf9f66b106c919
 
 const BULAN_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 const MAX_CSV_BYTES = 500 * 1024
 
 // Buat context
 const AppContext = createContext(null)
+const VALID_GAMES = ['puzzle', 'kata', 'memori', 'hitung', 'pola', 'bentuk', 'sudoku', 'hanoi']
+const isValidDateString = (value) => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+}
 
 function persistAcademicData(nextStudents, nextFiles) {
   let previousStudents
@@ -52,7 +66,11 @@ export function AppProvider({ children }) {
   const [reports, setReports] = useLocalStorage('ls_reports', initialReports)
   const [notifications, setNotifications] = useLocalStorage('ls_notifications', initialNotifications)
   const [students, setStudents] = useLocalStorage('ls_students', initialStudents)
+<<<<<<< HEAD
   const [uploadedFiles, setUploadedFiles] = useLocalStorage('ls_uploaded_files', [])
+=======
+  const [gameScores, setGameScores] = useLocalStorage('ls_game_scores', initialGameScores)
+>>>>>>> 4d542907a54480765702cd8b8dcf9f66b106c919
 
   // === AUTH ===
   const login = useCallback((userId) => {
@@ -598,13 +616,183 @@ export function AppProvider({ children }) {
     })
   }, [currentUser, escalateExternal])
 
+  // === GAME ===
+
+  const getStreakHarian = useCallback((userId) => {
+    const today = getTodayString()
+    const toDayNumber = (dateString) => {
+      const [year, month, day] = dateString.split('-').map(Number)
+      return Date.UTC(year, month - 1, day) / 86400000
+    }
+    const todayNumber = toDayNumber(today)
+    const playedDays = [...new Set(
+      gameScores
+        .filter(score => score.userId === userId && isValidDateString(score.tanggal))
+        .map(score => score.tanggal)
+        .filter(date => toDayNumber(date) <= todayNumber)
+    )].sort((left, right) => toDayNumber(right) - toDayNumber(left))
+
+    if (!playedDays.length || todayNumber - toDayNumber(playedDays[0]) > 1) return 0
+
+    let streak = 1
+    for (let index = 0; index < playedDays.length - 1; index += 1) {
+      const difference = toDayNumber(playedDays[index]) - toDayNumber(playedDays[index + 1])
+      if (difference !== 1) break
+      streak += 1
+    }
+
+    return streak
+  }, [gameScores])
+
+  const getSkorHariIni = useCallback((userId, game) => {
+    const today = getTodayString()
+    return gameScores.find(score =>
+      score.userId === userId && score.game === game && score.tanggal === today
+    ) || null
+  }, [gameScores])
+
+  const simpanSkor = useCallback(({ userId, game, skor, tanggal = getTodayString(), langkah, waktu, detail }) => {
+    const numericScore = Number(skor)
+    if (!userId || !users.some(user => user.id === userId && user.role === 'siswa')) {
+      return { success: false, message: 'Akun siswa tidak ditemukan.' }
+    }
+    if (!VALID_GAMES.includes(game)) {
+      return { success: false, message: `Game "${game}" tidak valid.` }
+    }
+    if (
+      skor === null ||
+      typeof skor === 'boolean' ||
+      (typeof skor === 'string' && !skor.trim()) ||
+      !Number.isFinite(numericScore)
+    ) {
+      return { success: false, message: 'Skor harus berupa angka yang valid.' }
+    }
+    if (!isValidDateString(tanggal)) {
+      return { success: false, message: 'Tanggal harus menggunakan format YYYY-MM-DD.' }
+    }
+
+    const duplicate = gameScores.some(score =>
+      score.userId === userId && score.game === game && score.tanggal === tanggal
+    )
+    if (duplicate) {
+      return {
+        success: false,
+        message: 'Kamu sudah menyelesaikan tantangan game ini untuk tanggal tersebut.',
+      }
+    }
+
+    const newScore = {
+      id: `score-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      userId,
+      game,
+      skor: Math.max(0, Math.min(100, numericScore)),
+      tanggal,
+      ...(Number.isInteger(langkah) && langkah >= 0 ? { langkah } : {}),
+      ...(Number.isInteger(waktu) && waktu >= 0 ? { waktu } : {}),
+      ...(Array.isArray(detail) ? { detail } : {}),
+    }
+    setGameScores(previousScores => [...previousScores, newScore])
+    return { success: true, skor: newScore }
+  }, [gameScores, setGameScores, users])
+
+  const getTotalSkor = useCallback((userId) => {
+    const totalRaw = gameScores
+      .filter(score => score.userId === userId)
+      .reduce((total, score) => total + (Number(score.skor) || 0), 0)
+    const streak = getStreakHarian(userId)
+    const bonusStreak = Math.min(streak * 5, 25)
+
+    return { totalRaw, bonusStreak, total: totalRaw + bonusStreak, streak }
+  }, [gameScores, getStreakHarian])
+
+  const getStudentGameStats = useCallback((userId) => {
+    const today = getTodayString()
+    const totals = getTotalSkor(userId)
+    const todayScores = Object.fromEntries(
+      VALID_GAMES.map(game => [game, gameScores.find(score =>
+        score.userId === userId && score.game === game && score.tanggal === today
+      )?.skor ?? null]),
+    )
+
+    return {
+      ...totals,
+      totalScore: totals.total,
+      todayScores,
+    }
+  }, [gameScores, getTotalSkor])
+
+  const getLeaderboard = useCallback((scope = 'kelasku', timeFilter = 'all') => {
+    if (scope !== 'kelasku' && scope !== 'sekolah') return []
+    if (timeFilter !== 'week' && timeFilter !== 'all') return []
+
+    const now = new Date()
+    const today = getTodayString()
+    const todayNumber = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000
+    const weekStart = todayNumber - ((now.getDay() + 6) % 7)
+    const studentUsers = users.filter(user =>
+      user.role === 'siswa' &&
+      (scope === 'sekolah' || user.class === currentUser?.class)
+    )
+
+    return studentUsers
+      .map(student => {
+        const scores = gameScores.filter(score => {
+          if (score.userId !== student.id || !isValidDateString(score.tanggal)) return false
+          if (timeFilter === 'all') return true
+          const [year, month, day] = score.tanggal.split('-').map(Number)
+          const scoreDay = Date.UTC(year, month - 1, day) / 86400000
+          return scoreDay >= weekStart && scoreDay <= todayNumber
+        })
+        const score = scores.reduce((total, item) => total + (Number(item.skor) || 0), 0)
+
+        return {
+          studentId: student.id,
+          id: student.id,
+          name: student.name,
+          class: student.class,
+          score,
+          totalScore: score,
+        }
+      })
+      .sort((left, right) =>
+        right.score - left.score || left.name.localeCompare(right.name, 'id')
+      )
+  }, [currentUser?.class, gameScores])
+
+  const getLeaderboardKelas = useCallback((className) => users
+    .filter(user => user.role === 'siswa' && user.class === className)
+    .map(student => ({
+      userId: student.id,
+      nama: student.name,
+      email: student.email,
+      kelas: student.class,
+      ...getTotalSkor(student.id),
+    }))
+    .sort((left, right) => right.total - left.total), [getTotalSkor, users])
+
+  const getLeaderboardSekolah = useCallback(() => users
+    .filter(user => user.role === 'siswa')
+    .map(student => ({
+      userId: student.id,
+      nama: student.name,
+      email: student.email,
+      kelas: student.class,
+      ...getTotalSkor(student.id),
+    }))
+    .sort((left, right) => right.total - left.total), [getTotalSkor, users])
+
   // Reset data ke default (untuk demo)
   const resetData = useCallback(() => {
     setReports(initialReports)
     setNotifications(initialNotifications)
     setStudents(initialStudents)
+<<<<<<< HEAD
     setUploadedFiles([])
   }, [setReports, setNotifications, setStudents, setUploadedFiles])
+=======
+    setGameScores(initialGameScores)
+  }, [setGameScores, setNotifications, setReports, setStudents])
+>>>>>>> 4d542907a54480765702cd8b8dcf9f66b106c919
 
   const value = {
     // Auth
@@ -647,6 +835,17 @@ export function AppProvider({ children }) {
     markAllNotificationsRead,
     getNotificationsForUser,
     getUnreadCount,
+
+    // Game
+    gameScores,
+    simpanSkor,
+    getSkorHariIni,
+    getTotalSkor,
+    getStudentGameStats,
+    getLeaderboard,
+    getStreakHarian,
+    getLeaderboardKelas,
+    getLeaderboardSekolah,
 
     // Reset
     resetData,

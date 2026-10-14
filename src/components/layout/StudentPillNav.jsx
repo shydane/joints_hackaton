@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Home, PenLine, Search, Bell } from 'lucide-react'
+import { Home, PenLine, Search, Bell, Gamepad2, Trophy } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 
 /**
@@ -12,6 +12,8 @@ const NAV_ITEMS = [
   { path: '/siswa/lapor', icon: PenLine, label: 'Lapor' },
   { path: '/siswa/lacak', icon: Search, label: 'Lacak' },
   { path: '/siswa/notifikasi', icon: Bell, label: 'Notif' },
+  { path: '/siswa/permainan', icon: Gamepad2, label: 'Game' },
+  { path: '/siswa/leaderboard', icon: Trophy, label: 'Peringkat' },
 ]
 
 export default function StudentPillNav() {
@@ -27,9 +29,11 @@ export default function StudentPillNav() {
       animate={{ y: 0 }}
       className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40"
     >
-      <div className="pill-nav px-2 py-2 flex items-center gap-1">
+      <div className="pill-nav max-w-[calc(100vw-2rem)] overflow-x-auto px-2 py-2 flex items-center gap-1">
         {NAV_ITEMS.map(({ path, icon: Icon, label }) => {
-          const isActive = location.pathname === path
+          const isActive = location.pathname === path ||
+            (path === '/siswa/permainan' && location.pathname.startsWith('/siswa/game/'))
+            || (path === '/siswa/leaderboard' && location.pathname === path)
           const isBell = label === 'Notif'
 
           return (
