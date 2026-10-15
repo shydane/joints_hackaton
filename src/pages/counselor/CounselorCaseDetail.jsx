@@ -10,10 +10,11 @@ import GradeChart from '../../components/charts/GradeChart'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Card from '../../components/ui/Card'
+import EconomicReferralWhatsApp from '../../components/counselor/EconomicReferralWhatsApp'
+import FotoGallery from '../../components/ui/FotoGallery'
 import Modal from '../../components/ui/Modal'
 import TextArea from '../../components/ui/TextArea'
 import Timeline from '../../components/ui/Timeline'
-import FotoGallery from '../../components/ui/FotoGallery'
 
 const CATEGORY_OPTIONS = [
   { id: 'ekonomi', label: 'Ekonomi', emoji: '💰' },
@@ -308,6 +309,14 @@ export default function CounselorCaseDetail() {
           category={currentCategory}
           recommendation={aidRecommendation}
           onGenerateAidRecommendation={generateAidRecommendation}
+        />
+      )}
+
+      {(report.category === 'ekonomi' || selectedCategory === 'ekonomi') && (
+        <EconomicReferralWhatsApp
+          key={report.id}
+          studentName={report.anonymous ? '' : report.studentName || ''}
+          caseCode={report.code}
         />
       )}
 

@@ -7,6 +7,7 @@ import Card from '../../components/ui/Card'
 import Modal from '../../components/ui/Modal'
 import EmptyState from '../../assets/illustrations/EmptyState'
 import { parseAcademicCsv, parseAcademicCsvPreview, validateAcademicRows } from '../../utils/parseAcademicCsv'
+import { createAcademicWorkbook } from '../../utils/academicWorkbook'
 import { readAcademicXlsx } from '../../utils/parseAcademicXlsx'
 
 function escapeCsv(value) {
@@ -113,13 +114,13 @@ export default function TeacherAcademicData() {
     }
 
     if (file.size > 500 * 1024) {
-      setMessage('Ukuran file CSV melebihi batas 500 KB. Pilih file yang lebih kecil.')
+      setMessage('Ukuran file melebihi batas 500 KB. Pilih file yang lebih kecil.')
       return
     }
     try {
       const csvText = await file.text()
       if (new Blob([csvText]).size > 500 * 1024) {
-        setMessage('Ukuran file CSV melebihi batas 500 KB. Pilih file yang lebih kecil.')
+        setMessage('Data hasil konversi melebihi batas 500 KB. Pilih file yang lebih kecil.')
         return
       }
       const result = parseAcademicCsv(csvText, users, currentUser?.id)
@@ -131,22 +132,26 @@ export default function TeacherAcademicData() {
         setMessage('Tidak ada data yang dapat dibaca dari file CSV.')
       }
     } catch (error) {
-      console.error('Gagal membaca file CSV:', error)
-      setMessage('File CSV gagal dibaca. Periksa file lalu coba lagi.')
+      console.error('Gagal membaca file akademik:', error)
+      setMessage(error.message || 'File gagal dibaca. Periksa format dan isi sheet pertama.')
     }
   }
 
-  const handleDownloadTemplate = () => {
+  const getTemplateRows = () => {
     const period = new Date().toISOString().slice(0, 7)
-    const lines = [
-      ['student_id', 'periode', 'nilai', 'kehadiran', 'nama'].join(';'),
-      ...classStudents.map(student => [
+    return classStudents.map(student => [
         student.id,
         period,
-        '80',
-        '95',
-        escapeCsv(student.name),
-      ].join(';')),
+        80,
+        95,
+        student.name,
+      ])
+  }
+
+  const handleDownloadTemplate = () => {
+    const lines = [
+      ['student_id', 'periode', 'nilai', 'kehadiran', 'nama'].join(';'),
+      ...getTemplateRows().map(row => row.map(escapeCsv).join(';')),
     ]
     const blob = new Blob([`\uFEFF${lines.join('\r\n')}`], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -155,6 +160,27 @@ export default function TeacherAcademicData() {
     link.download = 'templat-data-akademik.csv'
     link.click()
     URL.revokeObjectURL(url)
+  }
+
+  const handleDownloadExcelTemplate = async () => {
+    try {
+      const data = await createAcademicWorkbook(
+        ['student_id', 'periode', 'nilai', 'kehadiran', 'nama'],
+        getTemplateRows(),
+      )
+      const blob = new Blob([data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'templat-data-akademik.xlsx'
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Gagal membuat templat Excel akademik:', error)
+      setMessage('Templat Excel gagal dibuat. Silakan coba lagi.')
+    }
   }
 
   const handleSave = () => {
@@ -197,7 +223,27 @@ export default function TeacherAcademicData() {
     }
   }
 
-  const handleDownload = file => {
+  const handleDownload = async file => {
+    if (file.fileName.toLowerCase().endsWith('.xlsx')) {
+      try {
+        const { headers, rows } = parseAcademicCsvPreview(file.rawCsv)
+        const data = await createAcademicWorkbook(headers, rows)
+        const blob = new Blob([data], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = file.fileName
+        link.click()
+        URL.revokeObjectURL(url)
+      } catch (error) {
+        console.error('Gagal membuat ulang file Excel:', error)
+        setMessage('File Excel gagal disiapkan untuk diunduh.')
+      }
+      return
+    }
+
     const blob = new Blob([file.rawCsv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -231,14 +277,19 @@ export default function TeacherAcademicData() {
       <Card color="sky-light">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <div>
-            <h2 className="font-bold">Templat CSV</h2>
+            <h2 className="font-bold">Templat data akademik</h2>
             <p className="mt-1 text-xs text-ink/60">
-              Templat berisi siswa kelas Anda dan contoh data untuk periode berjalan. Excel: simpan sebagai .xlsx dengan kolom yang sama.
+              Templat berisi siswa kelas Anda dan contoh data untuk periode berjalan. Excel dan CSV memakai kolom yang sama.
             </p>
           </div>
-          <Button variant="outline" icon={Download} onClick={handleDownloadTemplate}>
-            Unduh templat CSV
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" icon={Download} onClick={handleDownloadTemplate}>
+              Unduh CSV
+            </Button>
+            <Button variant="secondary" icon={Download} onClick={handleDownloadExcelTemplate}>
+              Unduh Excel
+            </Button>
+          </div>
         </div>
       </Card>
 
@@ -260,7 +311,7 @@ export default function TeacherAcademicData() {
         >
           <FileUp size={28} className="mx-auto mb-2" />
           <p className="text-sm font-bold">Pilih atau seret file CSV atau Excel (.xlsx) ke sini</p>
-          <p className="mt-1 text-xs text-ink/60">Kolom wajib: student_id, periode, nilai, kehadiran.</p>
+          <p className="mt-1 text-xs text-ink/60">Kolom wajib: student_id, periode, nilai, kehadiran. File Excel dapat memilih sheet yang dibaca.</p>
           <input
             ref={inputRef}
             type="file"
@@ -380,7 +431,7 @@ export default function TeacherAcademicData() {
         <h2 className="mb-3 text-lg font-bold font-heading">Riwayat Unggahan</h2>
         {uploadedFiles.length === 0 ? (
           <Card>
-            <EmptyState text="Belum ada file CSV yang diunggah" />
+            <EmptyState text="Belum ada file CSV atau Excel yang diunggah" />
           </Card>
         ) : (
           <div className="space-y-3">

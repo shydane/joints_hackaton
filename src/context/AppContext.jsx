@@ -1,4 +1,4 @@
-import { createContext, useContext, useCallback, useEffect, useRef } from 'react'
+import { createContext, useContext, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { initialReports } from '../data/reports'
 import { initialNotifications } from '../data/notifications'
@@ -86,6 +86,15 @@ export function AppProvider({ children }) {
   const [students, setStudents] = useLocalStorage('ls_students', seedStudents)
   const [uploadedFiles, setUploadedFiles] = useLocalStorage('ls_uploaded_files', [])
   const [gameScores, setGameScores] = useLocalStorage('ls_game_scores', initialGameScores)
+  const [registeredStudents, setRegisteredStudents] = useLocalStorage('ls_registered_students', [])
+  const allUsers = useMemo(() => [
+    ...users,
+    ...(Array.isArray(registeredStudents)
+      ? registeredStudents.filter(user => (
+        user?.role === 'siswa' && !users.some(existing => existing.id === user.id)
+      ))
+      : []),
+  ], [registeredStudents, users])
 
   useEffect(() => {
     usersRef.current = users
@@ -131,6 +140,55 @@ export function AppProvider({ children }) {
       return { token: crypto.randomUUID(), user: authenticatedUser }
     })()
   }, [setCurrentUser])
+
+  const createStudentAccount = useCallback(({ name, className }) => {
+    const normalizedName = typeof name === 'string' ? name.trim().replace(/\s+/g, ' ') : ''
+    if (normalizedName.length < 2 || normalizedName.length > 120) {
+      throw new Error('Nama siswa harus terdiri dari 2 sampai 120 karakter.')
+    }
+
+    const matchingTeachers = allUsers.filter(user => (
+      isClassTeacher(user) && (user.class || user.kelasId) === className
+    ))
+    if (matchingTeachers.length !== 1) {
+      throw new Error('Kelas tidak tersedia atau belum memiliki tepat satu wali kelas.')
+    }
+
+    const initials = normalizedName
+      .split(' ')
+      .slice(0, 2)
+      .map(part => part[0].toLocaleUpperCase('id-ID'))
+      .join('')
+    const idSuffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    const newStudent = {
+      id: `siswa-baru-${idSuffix}`,
+      name: normalizedName,
+      initials,
+      role: 'siswa',
+      class: className,
+      classId: className,
+      kelasId: className,
+      avatar: '🎓',
+      homeroomTeacherId: matchingTeachers[0].id,
+    }
+
+    setRegisteredStudents(previous => [
+      ...(Array.isArray(previous) ? previous : []),
+      newStudent,
+    ])
+    setStudents(previous => [...previous, {
+      id: newStudent.id,
+      studentId: newStudent.id,
+      kelasId: className,
+      riwayat: [],
+      kehadiran: [],
+      riwayatBulanan: [],
+    }])
+    setCurrentUser(newStudent)
+    return newStudent
+  }, [allUsers, setCurrentUser, setRegisteredStudents, setStudents])
 
   const loginDemo = useCallback((roleOrUserId) => {
     if (!DEMO_MODE) return null
@@ -187,11 +245,11 @@ export function AppProvider({ children }) {
   }, [setUsers, setStudents])
 
   const getSiswaByKelas = useCallback((kelasId) => students.filter(student => (
-    users.find(user =>
+    allUsers.find(user =>
       user.id === (student.id || student.studentId)
       && (user.kelasId || user.classId) === kelasId,
     )
-  )), [students, users])
+  )), [students, allUsers])
 
   const getKelasById = useCallback((id) => classes.find(kelas => kelas.id === id), [])
 
@@ -255,7 +313,7 @@ export function AppProvider({ children }) {
     const assignedTo = isUrgent ? 'bk-01' : (
       channel === 'guru_bk' ? 'bk-01' :
       // Cari wali kelas berdasarkan kelas siswa
-      users.find(u => isClassTeacher(u) && (u.class || u.kelasId) === reportData.class)?.id || 'guru-01'
+      allUsers.find(u => isClassTeacher(u) && (u.class || u.kelasId) === reportData.class)?.id || 'guru-01'
     )
 
     const newReport = {
@@ -302,7 +360,7 @@ export function AppProvider({ children }) {
     setNotifications(prev => [targetNotif, ...prev])
 
     return code
-  }, [setReports, setNotifications, users])
+  }, [allUsers, setReports, setNotifications])
 
   // Update status laporan
   const updateReportStatus = useCallback((reportId, newStatus, note = null, extraData = {}) => {
@@ -492,7 +550,7 @@ export function AppProvider({ children }) {
       case 'siswa':
         return reports.filter(r => r.studentId === userId)
       case 'wali_kelas': {
-        const user = users.find(u => u.id === userId)
+        const user = allUsers.find(u => u.id === userId)
         return reports.filter(r =>
           r.assignedTo === userId ||
           (r.class === user?.class && r.source === 'deteksi')
@@ -505,7 +563,7 @@ export function AppProvider({ children }) {
       default:
         return []
     }
-  }, [reports, users])
+  }, [allUsers, reports])
 
   // Ambil notifikasi milik user
   const getNotificationsForUser = useCallback((userId) => {
@@ -525,29 +583,30 @@ export function AppProvider({ children }) {
   const jalankanDeteksiDini = useCallback((classTeacherId = null, targetBulan = null) => {
     let studentsToCheck = students
     if (classTeacherId) {
-      const classTeacher = users.find(user => user.id === classTeacherId && isClassTeacher(user))
+      const classTeacher = allUsers.find(user => user.id === classTeacherId && isClassTeacher(user))
       if (!classTeacher) {
         throw new Error(`Wali kelas dengan id "${classTeacherId}" tidak ditemukan`)
       }
-      const studentIdsInClass = users
+      const studentIdsInClass = allUsers
         .filter(user => user.role === 'siswa' && (user.class || user.kelasId) === (classTeacher.class || classTeacher.kelasId))
         .map(user => user.id)
       studentsToCheck = students.filter(student => studentIdsInClass.includes(student.id || student.studentId))
     }
 
-    const { newReports, newNotifications } = checkEarlyDetection(studentsToCheck, reports, users, targetBulan)
+    const { newReports, newNotifications } = checkEarlyDetection(studentsToCheck, reports, allUsers, targetBulan)
     if (newReports.length > 0) {
       setReports(prev => [...newReports, ...prev])
       setNotifications(prev => [...newNotifications, ...prev])
     }
     return newReports.length
-  }, [students, reports, setReports, setNotifications, users])
+  }, [students, reports, setReports, setNotifications, allUsers])
 
   const importDataAkademik = useCallback((rows, classTeacherId, fileMeta = null) => {
-    const classTeacher = users.find(user => user.id === classTeacherId && isClassTeacher(user))
+    const classTeacher = allUsers.find(user => user.id === classTeacherId && isClassTeacher(user))
     if (!classTeacher) {
       throw new Error(`Wali kelas dengan id "${classTeacherId}" tidak ditemukan`)
     }
+    const className = classTeacher.class || classTeacher.kelasId
 
     const rawCsv = fileMeta?.rawCsv
     const rawCsvSize = typeof rawCsv === 'string' ? new Blob([rawCsv]).size : 0
@@ -574,8 +633,11 @@ export function AppProvider({ children }) {
     }
 
     rows.forEach(row => {
-      const studentUser = users.find(user => user.id === row.studentId)
-      if (studentUser?.role !== 'siswa' || studentUser.class !== classTeacher.class) {
+      const studentUser = allUsers.find(user => user.id === row.studentId)
+      if (
+        studentUser?.role !== 'siswa'
+        || (studentUser.class || studentUser.kelasId) !== className
+      ) {
         dilewati += 1
         return
       }
@@ -622,7 +684,7 @@ export function AppProvider({ children }) {
           originalFileName: fileMeta.originalFileName || fileMeta.fileName,
           sourceType: fileMeta.sourceType || 'csv',
           uploadedBy: classTeacherId,
-          class: classTeacher.class,
+          class: className,
           uploadedAt,
           size: fileMeta.size ?? rawCsvSize,
           rawCsv,
@@ -637,7 +699,7 @@ export function AppProvider({ children }) {
     setStudents(updatedStudents)
     if (fileMeta) setUploadedFiles(nextUploadedFiles)
     return { diperbarui, ditambahkan, dilewati, fileId }
-  }, [students, uploadedFiles, setStudents, setUploadedFiles, users])
+  }, [students, uploadedFiles, setStudents, setUploadedFiles, allUsers])
 
   const getUploadedFilesForClass = useCallback((className) => (
     uploadedFiles
@@ -646,9 +708,9 @@ export function AppProvider({ children }) {
   ), [uploadedFiles])
 
   const deleteUploadedFile = useCallback((fileId, teacherId) => {
-    const teacher = users.find(user => user.id === teacherId && isClassTeacher(user))
+    const teacher = allUsers.find(user => user.id === teacherId && isClassTeacher(user))
     const file = uploadedFiles.find(item => item.id === fileId)
-    if (!teacher || !file || file.class !== teacher.class) {
+    if (!teacher || !file || file.class !== (teacher.class || teacher.kelasId)) {
       throw new Error('Unggahan tidak ditemukan atau Anda tidak berhak menghapusnya.')
     }
 
@@ -660,16 +722,16 @@ export function AppProvider({ children }) {
     persistAcademicData(nextStudents, nextUploadedFiles)
     setStudents(nextStudents)
     setUploadedFiles(nextUploadedFiles)
-  }, [students, uploadedFiles, setStudents, setUploadedFiles, users])
+  }, [students, uploadedFiles, setStudents, setUploadedFiles, allUsers])
 
   const reimportUploadedFile = useCallback((fileId, teacherId) => {
-    const teacher = users.find(user => user.id === teacherId && isClassTeacher(user))
+    const teacher = allUsers.find(user => user.id === teacherId && isClassTeacher(user))
     const file = uploadedFiles.find(item => item.id === fileId)
-    if (!teacher || !file || file.class !== teacher.class) {
+    if (!teacher || !file || file.class !== (teacher.class || teacher.kelasId)) {
       throw new Error('Unggahan tidak ditemukan atau Anda tidak berhak mengimpornya.')
     }
 
-    const { validRows, errors } = parseAcademicCsv(file.rawCsv, users, teacherId)
+    const { validRows, errors } = parseAcademicCsv(file.rawCsv, allUsers, teacherId)
     return importDataAkademik(validRows, teacherId, {
       fileName: file.fileName,
       originalFileName: file.originalFileName,
@@ -679,7 +741,7 @@ export function AppProvider({ children }) {
       rowCount: validRows.length + errors.length,
       skippedRows: errors.length,
     })
-  }, [uploadedFiles, importDataAkademik, users])
+  }, [uploadedFiles, importDataAkademik, allUsers])
 
   const getNamaTampilan = useCallback((report, viewerRole) => {
     if (!report.anonymous) return report.studentName || 'Siswa'
@@ -700,7 +762,7 @@ export function AppProvider({ children }) {
     evidence = null,
     bukti = [],
   }) => {
-    const student = users.find(user => user.id === studentId)
+    const student = allUsers.find(user => user.id === studentId)
     if (!student) {
       throw new Error(`Siswa dengan id "${studentId}" tidak ditemukan`)
     }
@@ -719,7 +781,7 @@ export function AppProvider({ children }) {
       bukti,
     })
     return { code }
-  }, [createReport, users])
+  }, [allUsers, createReport])
 
   const walikelasTandaiTeratasi = useCallback((reportId, solusi) => {
     closeCase(reportId, {
@@ -829,7 +891,7 @@ export function AppProvider({ children }) {
 
   const simpanSkor = useCallback(({ userId, game, skor, tanggal = getTodayString(), langkah, waktu, detail }) => {
     const numericScore = Number(skor)
-    if (!userId || !users.some(user => user.id === userId && user.role === 'siswa')) {
+    if (!userId || !allUsers.some(user => user.id === userId && user.role === 'siswa')) {
       return { success: false, message: 'Akun siswa tidak ditemukan.' }
     }
     if (!VALID_GAMES.includes(game)) {
@@ -869,7 +931,7 @@ export function AppProvider({ children }) {
     }
     setGameScores(previousScores => [...previousScores, newScore])
     return { success: true, skor: newScore }
-  }, [gameScores, setGameScores, users])
+  }, [gameScores, setGameScores, allUsers])
 
   const getTotalSkor = useCallback((userId) => {
     const totalRaw = gameScores
@@ -905,7 +967,7 @@ export function AppProvider({ children }) {
     const today = getTodayString()
     const todayNumber = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000
     const weekStart = todayNumber - ((now.getDay() + 6) % 7)
-    const studentUsers = users.filter(user =>
+    const studentUsers = allUsers.filter(user =>
       user.role === 'siswa' &&
       (scope === 'sekolah' || user.class === currentUser?.class)
     )
@@ -933,9 +995,9 @@ export function AppProvider({ children }) {
       .sort((left, right) =>
         right.score - left.score || left.name.localeCompare(right.name, 'id')
       )
-  }, [currentUser?.class, gameScores, users])
+  }, [currentUser?.class, gameScores, allUsers])
 
-  const getLeaderboardKelas = useCallback((className) => users
+  const getLeaderboardKelas = useCallback((className) => allUsers
     .filter(user => user.role === 'siswa' && user.class === className)
     .map(student => ({
       userId: student.id,
@@ -944,9 +1006,9 @@ export function AppProvider({ children }) {
       kelas: student.class,
       ...getTotalSkor(student.id),
     }))
-    .sort((left, right) => right.total - left.total), [getTotalSkor, users])
+    .sort((left, right) => right.total - left.total), [getTotalSkor, allUsers])
 
-  const getLeaderboardSekolah = useCallback(() => users
+  const getLeaderboardSekolah = useCallback(() => allUsers
     .filter(user => user.role === 'siswa')
     .map(student => ({
       userId: student.id,
@@ -955,18 +1017,19 @@ export function AppProvider({ children }) {
       kelas: student.class,
       ...getTotalSkor(student.id),
     }))
-    .sort((left, right) => right.total - left.total), [getTotalSkor, users])
+    .sort((left, right) => right.total - left.total), [getTotalSkor, allUsers])
 
   // Reset data ke default (untuk demo)
     const resetData = useCallback(() => {
     setReports(initialReports)
     setNotifications(initialNotifications)
-      usersRef.current = [...seedUsers]
-      setUsers([...seedUsers])
+    usersRef.current = [...seedUsers]
+    setUsers([...seedUsers])
     setStudents(seedStudents)
     setUploadedFiles([])
     setGameScores(initialGameScores)
-  }, [setReports, setNotifications, setUsers, setStudents, setUploadedFiles, setGameScores])
+    setRegisteredStudents([])
+  }, [setReports, setNotifications, setUsers, setStudents, setUploadedFiles, setGameScores, setRegisteredStudents])
 
   const value = {
     // Auth
@@ -976,8 +1039,9 @@ export function AppProvider({ children }) {
     loginDemo,
     daftarSiswa,
     logout,
-    users,
+    users: allUsers,
     demoUsers: seedUsers,
+    createStudentAccount,
     students,
     classes,
     getSiswaByKelas,

@@ -94,6 +94,16 @@ export default function Login() {
             Kembali ke beranda
           </Link>
         </p>
+        <p className="text-center text-sm text-ink/60">
+          Siswa baru?{' '}
+          <button
+            type="button"
+            onClick={() => navigate('/daftar-siswa')}
+            className="font-bold text-sunrise hover:underline"
+          >
+            Buat akun siswa
+          </button>
+        </p>
       </div>
     </main>
   )
