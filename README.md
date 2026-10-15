@@ -183,18 +183,17 @@ npm run build
 
 Karya ini disusun oleh mahasiswa Politeknik Negeri Jember:
 
-* **Yoga Dwi Putra Bagus** 
+* **Yoga Dwi Putra Bagus** : 
+Bertanggung jawab atas kepemimpinan tim, arsitektur Context API global, manajemen persistensi data, struktur mock data, dan logika deteksi dini otomatis.
 
+* **M. Ihdhar Ihsanuddin Hasyidan** : 
+Bertanggung jawab atas desain UI/UX soft-neobrutalism, pengembangan antarmuka reaktif (Siswa, Walas, BK), integrasi form bertahap, dan sinkronisasi alur interaksi pengguna.
 
-* **M. Ihdhar Ihsanuddin Hasyidan** 
+* **Nency Elvaretta Ardelia** : 
+Bertanggung jawab atas riset kebutuhan pengguna, pengujian skenario fungsionalitas, penyusunan dokumentasi teknis, dan perancangan materi.
 
-
-* **Nency Elvaretta Ardelia**
-
-
-* **Nasrizal Ardhani Hidayatullah** 
-
-
+* **Nasrizal Ardhani Hidayatullah** : 
+Bertanggung jawab atas analisis sistem, pemodelan data akademik siswa, perancangan metrik analitik Recharts, dan pengujian alur data.   
 
 ---
 
