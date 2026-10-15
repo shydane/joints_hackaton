@@ -175,6 +175,9 @@ export default function LandingPage() {
             <Link to="/login" className="rounded-xl border border-stone-200 px-3 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-50">
               Masuk
             </Link>
+            <Link to="/daftar" className="rounded-xl border-2 border-stone-900 bg-amber-200 px-3 py-2 text-sm font-bold text-stone-900 shadow-[2px_2px_0_#14213D] transition hover:bg-amber-300">
+              Daftar
+            </Link>
           </nav>
         </div>
       </header>
@@ -221,6 +224,11 @@ export default function LandingPage() {
                 <Link to="/login" className="w-full sm:w-auto">
                   <Button size="lg" className="w-full gap-2 sm:w-auto" icon={MessageSquareHeart}>
                     Mulai Cerita Sekarang
+                  </Button>
+                </Link>
+                <Link to="/daftar" className="w-full sm:w-auto">
+                  <Button variant="secondary" size="lg" className="w-full sm:w-auto">
+                    Daftar
                   </Button>
                 </Link>
                 <a href="#lacak" className="w-full sm:w-auto">

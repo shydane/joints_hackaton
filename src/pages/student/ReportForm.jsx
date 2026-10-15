@@ -14,6 +14,7 @@ import TextArea from '../../components/ui/TextArea'
 import Toggle from '../../components/ui/Toggle'
 import Badge from '../../components/ui/Badge'
 import ProgressPath from '../../components/ui/ProgressPath'
+import FotoBukti from '../../components/ui/FotoBukti'
 
 /**
  * Form lapor percakapan: satu pertanyaan per layar.
@@ -114,6 +115,7 @@ export default function ReportForm() {
     description: '',
     urgency: '',
     evidence: '',
+    bukti: [],
     channel: 'wali_kelas',
     anonymous: false,
   })
@@ -170,6 +172,7 @@ export default function ReportForm() {
         // Field tambahan yang dibutuhkan createReport (via buatLaporan wrapper)
         startDate: formData.startDate,
         evidence: formData.evidence || null,
+        bukti: formData.categories.includes('bullying') ? formData.bukti : [],
       })
 
       if (!laporan?.code) {
@@ -248,6 +251,9 @@ export default function ReportForm() {
             <StepEvidence
               value={formData.evidence}
               onChange={(v) => setFormData(d => ({ ...d, evidence: v }))}
+              photos={formData.bukti}
+              onPhotosChange={(v) => setFormData(d => ({ ...d, bukti: v }))}
+              isBullying={formData.categories.includes('bullying')}
             />
           )}
           {step === 5 && (
@@ -528,7 +534,7 @@ function StepUrgency({ value, onChange }) {
   )
 }
 
-function StepEvidence({ value, onChange }) {
+function StepEvidence({ value, onChange, photos, onPhotosChange, isBullying }) {
   return (
     <div className="flex flex-col gap-3">
       <div>
@@ -549,9 +555,20 @@ function StepEvidence({ value, onChange }) {
         id="input-bukti"
       />
 
+      {isBullying && (
+        <div className="flex flex-col gap-2 border-t-2 border-ink/10 pt-3">
+          <p className="text-xs font-semibold">Foto bukti (opsional, maksimal 3 foto)</p>
+          <FotoBukti value={photos} onChange={onPhotosChange} />
+          <p className="text-xs text-ink/50">
+            Foto dikompres dan metadata gambar seperti EXIF dihapus sebelum disimpan.
+          </p>
+        </div>
+      )}
+
       <Card color="sky-light" className="!py-2.5">
         <p className="text-xs text-ink/50">
-          💡 Di versi ini, bukti berupa teks. Di aplikasi nyata, kamu bisa upload foto atau file.
+          💡 Bukti berupa teks tetap opsional
+          {isBullying ? ' dan kamu juga dapat menambahkan foto.' : '.'}
         </p>
       </Card>
     </div>
@@ -736,8 +753,19 @@ function StepReview({ formData }) {
               </Badge>
             }
           />
-          {formData.evidence ? (
-            <ReviewRow label="Bukti" value={formData.evidence} truncate />
+          {formData.evidence || formData.categories.includes('bullying') && formData.bukti.length > 0 ? (
+            <ReviewRow
+              label="Bukti"
+              value={
+                <div className="flex flex-col gap-1">
+                  {formData.evidence && <span>{formData.evidence}</span>}
+                  {formData.categories.includes('bullying') && formData.bukti.length > 0 && (
+                    <span>{formData.bukti.length} foto bukti terlampir</span>
+                  )}
+                </div>
+              }
+              truncate
+            />
           ) : (
             <ReviewRow label="Bukti" value={<span className="text-ink/30 italic">Tidak ada</span>} />
           )}

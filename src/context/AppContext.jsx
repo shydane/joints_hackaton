@@ -1,18 +1,36 @@
-import { createContext, useContext, useCallback, useEffect } from 'react'
+import { createContext, useContext, useCallback, useEffect, useRef } from 'react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { initialReports } from '../data/reports'
 import { initialNotifications } from '../data/notifications'
-import { users } from '../data/users'
+import { seedUsers } from '../data/users'
+import { classes } from '../data/classes'
 import { generateReportCode } from '../utils/generateCode'
-import { initialStudents } from '../data/students'
+import { seedStudents } from '../data/students'
 import { checkEarlyDetection } from '../utils/detection'
 import { parseAcademicCsv } from '../utils/parseAcademicCsv'
 import { initialGameScores } from '../data/gameScores'
 import { getTodayString } from '../utils/dailySeed'
+import { DEMO_MODE } from '../config'
 
 const BULAN_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
 const MAX_CSV_BYTES = 500 * 1024
 const MAX_XLSX_BYTES = 2 * 1024 * 1024
+const isClassTeacher = user => user?.role === 'wali_kelas' || user?.role === 'wali'
+
+async function hashPassword(password) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password))
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+function getAuthenticatedUser(user) {
+  const { password, ...safeUser } = user
+  return {
+    ...safeUser,
+    name: safeUser.name || safeUser.nama,
+    role: safeUser.role === 'wali' ? 'wali_kelas' : safeUser.role,
+    class: safeUser.class || safeUser.kelasId,
+  }
+}
 
 // Buat context
 const AppContext = createContext(null)
@@ -63,9 +81,15 @@ export function AppProvider({ children }) {
   const [currentUser, setCurrentUser] = useLocalStorage('ls_current_user', null)
   const [reports, setReports] = useLocalStorage('ls_reports', initialReports)
   const [notifications, setNotifications] = useLocalStorage('ls_notifications', initialNotifications)
-  const [students, setStudents] = useLocalStorage('ls_students', initialStudents)
+  const [users, setUsers] = useLocalStorage('users', [...seedUsers])
+  const usersRef = useRef(users)
+  const [students, setStudents] = useLocalStorage('ls_students', seedStudents)
   const [uploadedFiles, setUploadedFiles] = useLocalStorage('ls_uploaded_files', [])
   const [gameScores, setGameScores] = useLocalStorage('ls_game_scores', initialGameScores)
+
+  useEffect(() => {
+    usersRef.current = users
+  }, [users])
 
   // Otomatis hapus laporan uji coba dengan kata tidak pantas atau kode dummy LS-BLKH-4
   useEffect(() => {
@@ -83,11 +107,136 @@ export function AppProvider({ children }) {
   }, [setReports])
 
   // === AUTH ===
-  const login = useCallback((userId) => {
-    const user = users.find(u => u.id === userId)
-    if (user) setCurrentUser(user)
-    return user
+  const login = useCallback((usernameOrId, password) => {
+    if (password === undefined) {
+      if (!DEMO_MODE) return null
+      const user = seedUsers.find(candidate => candidate.id === usernameOrId)
+      if (!user) return null
+      const authenticatedUser = getAuthenticatedUser(user)
+      setCurrentUser(authenticatedUser)
+      return authenticatedUser
+    }
+
+    return (async () => {
+      const passwordHash = /^[\da-f]{64}$/i.test(password)
+        ? password.toLowerCase()
+        : await hashPassword(password)
+      const user = usersRef.current.find(candidate =>
+        candidate.username === usernameOrId && candidate.password === passwordHash,
+      )
+      if (!user) return null
+
+      const authenticatedUser = getAuthenticatedUser(user)
+      setCurrentUser(authenticatedUser)
+      return { token: crypto.randomUUID(), user: authenticatedUser }
+    })()
   }, [setCurrentUser])
+
+  const loginDemo = useCallback((roleOrUserId) => {
+    if (!DEMO_MODE) return null
+    const user = seedUsers.find(candidate => candidate.id === roleOrUserId)
+      || seedUsers.find(candidate => candidate.role === roleOrUserId)
+      || (roleOrUserId === 'wali_kelas' && seedUsers.find(candidate => candidate.role === 'wali'))
+    if (!user) return null
+    const authenticatedUser = getAuthenticatedUser(user)
+    setCurrentUser(authenticatedUser)
+    return authenticatedUser
+  }, [setCurrentUser])
+
+  const daftarSiswa = useCallback(async ({ nama, kelasId, username, password, role = 'siswa' }) => {
+    if (role !== 'siswa') {
+      throw new Error('Pendaftaran hanya tersedia untuk peran Siswa.')
+    }
+    if (usersRef.current.find(user => user.username === username)) {
+      throw new Error('Username sudah dipakai')
+    }
+    if (typeof nama !== 'string' || !nama.trim()) throw new Error('Nama tidak boleh kosong')
+    if (typeof password !== 'string' || password.length < 6) {
+      throw new Error('Password minimal 6 karakter')
+    }
+    if (!classes.some(kelas => kelas.id === kelasId)) {
+      throw new Error(`Kelas dengan id "${kelasId}" tidak ditemukan`)
+    }
+
+    const newUser = {
+      id: crypto.randomUUID(),
+      nama: nama.trim(),
+      name: nama.trim(),
+      username,
+      password: await hashPassword(password),
+      role: 'siswa',
+      kelasId,
+      classId: kelasId,
+      class: kelasId,
+      initials: nama.trim().split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase(),
+    }
+    const newEntry = {
+      id: newUser.id,
+      studentId: newUser.id,
+      kelasId,
+      riwayat: [],
+      kehadiran: [],
+      riwayatBulanan: [],
+    }
+
+    const nextUsers = [...usersRef.current, newUser]
+    usersRef.current = nextUsers
+    setUsers(nextUsers)
+    setStudents(previousStudents => [...previousStudents, newEntry])
+    return newUser
+  }, [setUsers, setStudents])
+
+  const getSiswaByKelas = useCallback((kelasId) => students.filter(student => (
+    users.find(user =>
+      user.id === (student.id || student.studentId)
+      && (user.kelasId || user.classId) === kelasId,
+    )
+  )), [students, users])
+
+  const getKelasById = useCallback((id) => classes.find(kelas => kelas.id === id), [])
+
+  const simpanDataBulanan = useCallback(({ studentId, bulan, nilai, kehadiran }) => {
+    if (!Number.isFinite(nilai) || nilai < 0 || nilai > 100) {
+      throw new Error('Nilai harus berada di antara 0 dan 100')
+    }
+    if (!Number.isFinite(kehadiran) || kehadiran < 0 || kehadiran > 100) {
+      throw new Error('Kehadiran harus berada di antara 0 dan 100')
+    }
+
+    if (!students.some(student => (student.id || student.studentId) === studentId)) {
+      throw new Error(`Data siswa dengan id "${studentId}" tidak ditemukan`)
+    }
+
+    setStudents(previousStudents => previousStudents.map(student => {
+      if ((student.id || student.studentId) !== studentId) return student
+
+      const riwayat = [...(student.riwayat || [])]
+      const historyIndex = riwayat.findIndex(entry => entry.bulan === bulan)
+      const historyEntry = { ...(historyIndex >= 0 ? riwayat[historyIndex] : {}), bulan, nilai, kehadiran }
+      if (historyIndex >= 0) riwayat[historyIndex] = historyEntry
+      else riwayat.push(historyEntry)
+
+      const attendance = [...(student.kehadiran || [])]
+      const attendanceIndex = attendance.findIndex(entry => entry.bulan === bulan)
+      const attendanceEntry = { ...(attendanceIndex >= 0 ? attendance[attendanceIndex] : {}), bulan, kehadiran }
+      if (attendanceIndex >= 0) attendance[attendanceIndex] = attendanceEntry
+      else attendance.push(attendanceEntry)
+
+      const riwayatBulanan = [...(student.riwayatBulanan || [])]
+      const legacyIndex = riwayatBulanan.findIndex(entry => entry.bulan === bulan)
+      const legacyEntry = {
+        ...(legacyIndex >= 0 ? riwayatBulanan[legacyIndex] : {}),
+        bulan,
+        nilaiRataRata: nilai,
+        kehadiranPersen: kehadiran,
+      }
+      if (legacyIndex >= 0) riwayatBulanan[legacyIndex] = legacyEntry
+      else riwayatBulanan.push(legacyEntry)
+
+      return { ...student, riwayat, kehadiran: attendance, riwayatBulanan }
+    }))
+    return true
+  }, [students, setStudents])
 
   const logout = useCallback(() => {
     setCurrentUser(null)
@@ -106,7 +255,7 @@ export function AppProvider({ children }) {
     const assignedTo = isUrgent ? 'bk-01' : (
       channel === 'guru_bk' ? 'bk-01' :
       // Cari wali kelas berdasarkan kelas siswa
-      users.find(u => u.role === 'wali_kelas' && u.class === reportData.class)?.id || 'guru-01'
+      users.find(u => isClassTeacher(u) && (u.class || u.kelasId) === reportData.class)?.id || 'guru-01'
     )
 
     const newReport = {
@@ -132,6 +281,7 @@ export function AppProvider({ children }) {
       notes: [],
       followUp: null,
       evidence: reportData.evidence || null,
+      bukti: reportData.bukti || [],
     }
 
     setReports(prev => [newReport, ...prev])
@@ -152,7 +302,7 @@ export function AppProvider({ children }) {
     setNotifications(prev => [targetNotif, ...prev])
 
     return code
-  }, [setReports, setNotifications])
+  }, [setReports, setNotifications, users])
 
   // Update status laporan
   const updateReportStatus = useCallback((reportId, newStatus, note = null, extraData = {}) => {
@@ -355,7 +505,7 @@ export function AppProvider({ children }) {
       default:
         return []
     }
-  }, [reports])
+  }, [reports, users])
 
   // Ambil notifikasi milik user
   const getNotificationsForUser = useCallback((userId) => {
@@ -372,29 +522,29 @@ export function AppProvider({ children }) {
     return reports.find(r => r.code === code) || null
   }, [reports])
 
-  const jalankanDeteksiDini = useCallback((classTeacherId = null) => {
+  const jalankanDeteksiDini = useCallback((classTeacherId = null, targetBulan = null) => {
     let studentsToCheck = students
     if (classTeacherId) {
-      const classTeacher = users.find(user => user.id === classTeacherId && user.role === 'wali_kelas')
+      const classTeacher = users.find(user => user.id === classTeacherId && isClassTeacher(user))
       if (!classTeacher) {
         throw new Error(`Wali kelas dengan id "${classTeacherId}" tidak ditemukan`)
       }
       const studentIdsInClass = users
-        .filter(user => user.role === 'siswa' && user.class === classTeacher.class)
+        .filter(user => user.role === 'siswa' && (user.class || user.kelasId) === (classTeacher.class || classTeacher.kelasId))
         .map(user => user.id)
-      studentsToCheck = students.filter(student => studentIdsInClass.includes(student.studentId))
+      studentsToCheck = students.filter(student => studentIdsInClass.includes(student.id || student.studentId))
     }
 
-    const { newReports, newNotifications } = checkEarlyDetection(studentsToCheck, reports, users)
+    const { newReports, newNotifications } = checkEarlyDetection(studentsToCheck, reports, users, targetBulan)
     if (newReports.length > 0) {
       setReports(prev => [...newReports, ...prev])
       setNotifications(prev => [...newNotifications, ...prev])
     }
     return newReports.length
-  }, [students, reports, setReports, setNotifications])
+  }, [students, reports, setReports, setNotifications, users])
 
   const importDataAkademik = useCallback((rows, classTeacherId, fileMeta = null) => {
-    const classTeacher = users.find(user => user.id === classTeacherId && user.role === 'wali_kelas')
+    const classTeacher = users.find(user => user.id === classTeacherId && isClassTeacher(user))
     if (!classTeacher) {
       throw new Error(`Wali kelas dengan id "${classTeacherId}" tidak ditemukan`)
     }
@@ -487,7 +637,7 @@ export function AppProvider({ children }) {
     setStudents(updatedStudents)
     if (fileMeta) setUploadedFiles(nextUploadedFiles)
     return { diperbarui, ditambahkan, dilewati, fileId }
-  }, [students, uploadedFiles, setStudents, setUploadedFiles])
+  }, [students, uploadedFiles, setStudents, setUploadedFiles, users])
 
   const getUploadedFilesForClass = useCallback((className) => (
     uploadedFiles
@@ -496,7 +646,7 @@ export function AppProvider({ children }) {
   ), [uploadedFiles])
 
   const deleteUploadedFile = useCallback((fileId, teacherId) => {
-    const teacher = users.find(user => user.id === teacherId && user.role === 'wali_kelas')
+    const teacher = users.find(user => user.id === teacherId && isClassTeacher(user))
     const file = uploadedFiles.find(item => item.id === fileId)
     if (!teacher || !file || file.class !== teacher.class) {
       throw new Error('Unggahan tidak ditemukan atau Anda tidak berhak menghapusnya.')
@@ -510,10 +660,10 @@ export function AppProvider({ children }) {
     persistAcademicData(nextStudents, nextUploadedFiles)
     setStudents(nextStudents)
     setUploadedFiles(nextUploadedFiles)
-  }, [students, uploadedFiles, setStudents, setUploadedFiles])
+  }, [students, uploadedFiles, setStudents, setUploadedFiles, users])
 
   const reimportUploadedFile = useCallback((fileId, teacherId) => {
-    const teacher = users.find(user => user.id === teacherId && user.role === 'wali_kelas')
+    const teacher = users.find(user => user.id === teacherId && isClassTeacher(user))
     const file = uploadedFiles.find(item => item.id === fileId)
     if (!teacher || !file || file.class !== teacher.class) {
       throw new Error('Unggahan tidak ditemukan atau Anda tidak berhak mengimpornya.')
@@ -529,7 +679,7 @@ export function AppProvider({ children }) {
       rowCount: validRows.length + errors.length,
       skippedRows: errors.length,
     })
-  }, [uploadedFiles, importDataAkademik])
+  }, [uploadedFiles, importDataAkademik, users])
 
   const getNamaTampilan = useCallback((report, viewerRole) => {
     if (!report.anonymous) return report.studentName || 'Siswa'
@@ -548,6 +698,7 @@ export function AppProvider({ children }) {
     anonim,
     startDate = null,
     evidence = null,
+    bukti = [],
   }) => {
     const student = users.find(user => user.id === studentId)
     if (!student) {
@@ -565,9 +716,10 @@ export function AppProvider({ children }) {
       anonymous: anonim,
       startDate,
       evidence,
+      bukti,
     })
     return { code }
-  }, [createReport])
+  }, [createReport, users])
 
   const walikelasTandaiTeratasi = useCallback((reportId, solusi) => {
     closeCase(reportId, {
@@ -781,7 +933,7 @@ export function AppProvider({ children }) {
       .sort((left, right) =>
         right.score - left.score || left.name.localeCompare(right.name, 'id')
       )
-  }, [currentUser?.class, gameScores])
+  }, [currentUser?.class, gameScores, users])
 
   const getLeaderboardKelas = useCallback((className) => users
     .filter(user => user.role === 'siswa' && user.class === className)
@@ -809,19 +961,28 @@ export function AppProvider({ children }) {
     const resetData = useCallback(() => {
     setReports(initialReports)
     setNotifications(initialNotifications)
-    setStudents(initialStudents)
+      usersRef.current = [...seedUsers]
+      setUsers([...seedUsers])
+    setStudents(seedStudents)
     setUploadedFiles([])
     setGameScores(initialGameScores)
-  }, [setReports, setNotifications, setStudents, setUploadedFiles, setGameScores])
+  }, [setReports, setNotifications, setUsers, setStudents, setUploadedFiles, setGameScores])
 
   const value = {
     // Auth
     currentUser,
     setCurrentUser,
     login,
+    loginDemo,
+    daftarSiswa,
     logout,
     users,
+    demoUsers: seedUsers,
     students,
+    classes,
+    getSiswaByKelas,
+    getKelasById,
+    simpanDataBulanan,
 
     // Laporan
     reports,

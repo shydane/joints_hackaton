@@ -1,6 +1,7 @@
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import StudentPillNav from './StudentPillNav'
 import { Sun, LogOut } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useApp } from '../../context/AppContext'
 
 /**
@@ -10,6 +11,20 @@ import { useApp } from '../../context/AppContext'
 export default function StudentLayout() {
   const { currentUser, logout } = useApp()
   const navigate = useNavigate()
+  const location = useLocation()
+  const [toast, setToast] = useState('')
+
+  useEffect(() => {
+    if (!location.state?.toast) return
+    setToast(location.state.toast)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state, navigate])
+
+  useEffect(() => {
+    if (!toast) return undefined
+    const timer = window.setTimeout(() => setToast(''), 4000)
+    return () => window.clearTimeout(timer)
+  }, [toast])
 
   const handleLogout = () => {
     logout()
@@ -56,6 +71,14 @@ export default function StudentLayout() {
 
       {/* ==================== CONTENT ==================== */}
       <main className="w-full max-w-4xl mx-auto px-4 py-6 pb-28 md:px-6 md:py-8 md:pb-28">
+        {toast && (
+          <p
+            role="status"
+            className="mb-4 rounded-xl border-2 border-ink bg-mint-light p-3 text-sm font-bold shadow-[3px_3px_0_#14213D]"
+          >
+            {toast}
+          </p>
+        )}
         <Outlet />
       </main>
 

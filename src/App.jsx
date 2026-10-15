@@ -8,8 +8,8 @@ import TextArea from './components/ui/TextArea'
 import Badge from './components/ui/Badge'
 
 const client = new OpenAI({
-  baseURL: 'http://localhost:20128/v1',
-  apiKey: '', // pindahkan key ke file .env
+  baseURL: import.meta.env.VITE_OPENAI_BASE_URL || 'http://localhost:20128/v1',
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY || 'sk-93c451680fe62f17-2yhp7v-7c46a0bd',
   dangerouslyAllowBrowser: true,
 })
 

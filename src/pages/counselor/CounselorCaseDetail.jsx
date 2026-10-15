@@ -13,6 +13,7 @@ import Card from '../../components/ui/Card'
 import Modal from '../../components/ui/Modal'
 import TextArea from '../../components/ui/TextArea'
 import Timeline from '../../components/ui/Timeline'
+import FotoGallery from '../../components/ui/FotoGallery'
 
 const CATEGORY_OPTIONS = [
   { id: 'ekonomi', label: 'Ekonomi', emoji: '💰' },
@@ -234,6 +235,10 @@ export default function CounselorCaseDetail() {
           <Timeline currentStatus={report.status} notes={notes} />
         </Card>
       </section>
+
+      {(report.category === 'bullying' || (Array.isArray(report.category) && report.category.includes('bullying'))) && (
+        <FotoGallery photos={report.bukti} anonymous={report.anonymous} />
+      )}
 
       {studentHistory.length > 0 ? (
         <section aria-label="Prestasi akademik dan kehadiran" className="grid grid-cols-1 gap-4 md:grid-cols-2">

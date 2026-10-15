@@ -1,7 +1,9 @@
+import { seedUsers } from './users'
+
 /**
  * Data akademik per bulan untuk simulasi deteksi dini.
  */
-export const initialStudents = [
+const seededAcademicRecords = [
   {
     studentId: 'siswa-02',
     riwayatBulanan: [
@@ -47,3 +49,22 @@ export const initialStudents = [
     ],
   },
 ]
+
+export const seedStudents = seededAcademicRecords.map(student => {
+  const user = seedUsers.find(seedUser => seedUser.id === student.studentId)
+  const riwayat = (student.riwayatBulanan || []).map(entry => ({
+    bulan: entry.bulan,
+    nilai: entry.nilaiRataRata,
+    kehadiran: entry.kehadiranPersen,
+  }))
+
+  return {
+    ...student,
+    id: student.studentId,
+    kelasId: user?.kelasId,
+    riwayat,
+    kehadiran: riwayat.map(({ bulan, kehadiran: value }) => ({ bulan, kehadiran: value })),
+  }
+})
+
+export const initialStudents = seedStudents

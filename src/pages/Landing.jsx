@@ -90,6 +90,14 @@ export default function Landing() {
           >
             Lacak Laporan
           </Button>
+          <Button
+            variant="secondary"
+            size="lg"
+            fullWidth
+            onClick={() => navigate('/daftar')}
+          >
+            Daftar
+          </Button>
         </motion.div>
       </section>
 

@@ -20,6 +20,11 @@ export function useLocalStorage(key, initialValue) {
     try {
       window.localStorage.setItem(key, JSON.stringify(storedValue))
     } catch (error) {
+      if (error?.name === 'QuotaExceededError') {
+        window.alert('Penyimpanan penuh, kurangi foto')
+        console.warn(`Penyimpanan localStorage penuh untuk key "${key}":`, error)
+        return
+      }
       console.warn(`Error setting localStorage key "${key}":`, error)
     }
   }, [key, storedValue])

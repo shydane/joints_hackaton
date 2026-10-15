@@ -42,14 +42,16 @@ export default function TeacherAcademicData() {
   const [hasPreview, setHasPreview] = useState(false)
 
   const classStudents = users.filter(user => (
-    user.role === 'siswa' && user.class === currentUser?.class
+    user.role === 'siswa' && (user.class || user.kelasId) === currentUser?.class
   ))
   const uploadedFiles = getUploadedFilesForClass(currentUser?.class)
 
   const processWorkbook = async (file, sheetName) => {
     try {
       const parsed = await readAcademicXlsx(file, { sheetName })
-      const teacher = users.find(user => user.id === currentUser?.id && user.role === 'wali_kelas')
+      const teacher = users.find(user =>
+        user.id === currentUser?.id && (user.role === 'wali_kelas' || user.role === 'wali'),
+      )
       const result = validateAcademicRows(parsed.rows, teacher ? { ...teacher, users } : null, parsed.headers)
       setValidRows(result.validRows)
       setErrors(result.errors)

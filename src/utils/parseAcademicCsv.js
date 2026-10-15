@@ -141,7 +141,7 @@ export function validateAcademicRows(rows, classTeacher, headers = Object.keys(r
       fail('ID tersebut bukan akun siswa.')
       return
     }
-    if (!classTeacher || student.class !== classTeacher.class) {
+    if (!classTeacher || (student.class || student.kelasId) !== (classTeacher.class || classTeacher.kelasId)) {
       fail('ID siswa bukan siswa kelas Anda.')
       return
     }
@@ -169,7 +169,7 @@ export function validateAcademicRows(rows, classTeacher, headers = Object.keys(r
       periode,
       nilaiRataRata,
       kehadiranPersen,
-      nama: String(row.nama ?? '').trim() || student.name,
+      nama: String(row.nama ?? '').trim() || student.name || student.nama,
     })
   })
 
@@ -189,7 +189,9 @@ export function parseAcademicCsv(csvText, users, classTeacherId) {
     return { validRows: [], errors: [{ row: 1, reason: 'File CSV kosong.' }] }
   }
 
-  const classTeacher = users.find(user => user.id === classTeacherId && user.role === 'wali_kelas')
+  const classTeacher = users.find(user =>
+    user.id === classTeacherId && (user.role === 'wali_kelas' || user.role === 'wali'),
+  )
   const headers = records[0].fields.map(value => value.trim().toLowerCase())
   const rows = records.slice(1).map(record => ({
     ...Object.fromEntries(headers.map((header, index) => [header, record.fields[index] ?? ''])),

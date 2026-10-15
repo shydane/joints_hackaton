@@ -3,6 +3,7 @@ import App from './App'
 import { useApp } from './context/AppContext'
 import LandingPage from './pages/LandingPage'
 import Login from './pages/Login'
+import Daftar from './pages/Daftar'
 import StudentLayout from './components/layout/StudentLayout'
 import StudentHome from './pages/student/StudentHome'
 import ReportForm from './pages/student/ReportForm'
@@ -38,6 +39,7 @@ export default function AppRouter() {
         <Route path="/ai" element={<App />} />
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/daftar" element={<Daftar />} />
         <Route path="/lacak" element={<StudentLayout />}>
           <Route index element={<TrackReport />} />
         </Route>

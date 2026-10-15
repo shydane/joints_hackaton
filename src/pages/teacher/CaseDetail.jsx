@@ -14,6 +14,7 @@ import Modal from '../../components/ui/Modal'
 import Timeline from '../../components/ui/Timeline'
 import GradeChart from '../../components/charts/GradeChart'
 import AttendanceChart from '../../components/charts/AttendanceChart'
+import FotoGallery from '../../components/ui/FotoGallery'
 
 /**
  * Detail kasus untuk wali kelas.
@@ -212,6 +213,10 @@ export default function CaseDetail() {
           <Timeline currentStatus={report.status} notes={notes} />
         </Card>
       </div>
+
+      {(report.category === 'bullying' || (Array.isArray(report.category) && report.category.includes('bullying'))) && (
+        <FotoGallery photos={report.bukti} anonymous={report.anonymous} />
+      )}
 
       {/* Grafik */}
       {studentMetrics.length > 0 ? (

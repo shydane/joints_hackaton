@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronUp, RotateCcw, Sparkles, Users } from 'lucide-react'
 import { useApp } from '../../context/AppContext'
 import Button from '../ui/Button'
+import { DEMO_MODE } from '../../config'
 
 const ROLE_OPTIONS = [
   { role: 'siswa', label: 'Siswa', path: '/siswa' },
@@ -13,24 +14,24 @@ const ROLE_OPTIONS = [
 export default function FloatingDemoBar() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { currentUser, users, login, resetData } = useApp()
+  const { currentUser, loginDemo, resetData } = useApp()
   const [isOpen, setIsOpen] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [resetConfirmation, setResetConfirmation] = useState(false)
 
+  if (!DEMO_MODE) return null
   if (location.pathname === '/ai' || location.pathname.startsWith('/ai/')) return null
 
   const switchRole = (role, path) => {
-    const account = users.find(user => user.role === role)
+    const account = loginDemo(role)
     if (!account) {
       setFeedback(`Akun demo ${role} tidak tersedia.`)
       return
     }
 
-    login(account.id)
     navigate(path)
-    setFeedback(`Demo bertukar kepada ${account.name}.`)
+    setFeedback(`Demo bertukar kepada ${account.name || account.nama}.`)
     setIsOpen(true)
   }
 

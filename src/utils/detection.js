@@ -6,12 +6,15 @@ const GRADE_DROP_THRESHOLD = 15
 /**
  * Buat laporan deteksi untuk siswa berisiko yang belum memiliki kasus aktif.
  */
-export function checkEarlyDetection(students, reports, users) {
+export function checkEarlyDetection(students, reports, users, targetBulan = null) {
   const newReports = []
   const newNotifications = []
   const now = new Date().toISOString()
+  const studentsToProcess = targetBulan
+    ? students.filter(student => !(student.riwayat || []).some(entry => entry.bulan === targetBulan))
+    : students
 
-  students.forEach((student) => {
+  studentsToProcess.forEach((student) => {
     const history = student.riwayatBulanan
     if (!history || history.length < 2) return
 
@@ -26,17 +29,18 @@ export function checkEarlyDetection(students, reports, users) {
     if (!attendanceIsCritical && !gradeDroppedSharply) return
 
     const hasActiveReport = reports.some(
-      (report) => report.studentId === student.studentId
+      (report) => report.studentId === (student.id || student.studentId)
         && report.status !== 'selesai'
         && report.status !== 'eskalasi_eksternal',
     )
     if (hasActiveReport) return
 
-    const studentUser = users.find((user) => user.id === student.studentId)
+    const studentUser = users.find((user) => user.id === (student.id || student.studentId))
     if (!studentUser) return
 
     const classTeacher = users.find(
-      (user) => user.role === 'wali_kelas' && user.class === studentUser.class,
+      (user) => (user.role === 'wali_kelas' || user.role === 'wali')
+        && (user.class || user.kelasId) === (studentUser.class || studentUser.kelasId),
     )
     const assignedTo = classTeacher?.id || 'guru-01'
     const reasons = []
@@ -48,17 +52,17 @@ export function checkEarlyDetection(students, reports, users) {
     }
 
     const code = generateReportCode()
-    const reportId = `rpt-auto-${Date.now()}-${student.studentId}`
+    const reportId = `rpt-auto-${Date.now()}-${student.id || student.studentId}`
     const initials = studentUser.initials
       || studentUser.name.split(/\s+/).map((part) => part[0]).join('')
 
     newReports.push({
       id: reportId,
       code,
-      studentId: student.studentId,
-      studentName: studentUser.name,
+      studentId: student.id || student.studentId,
+      studentName: studentUser.name || studentUser.nama,
       studentInitials: initials,
-      class: studentUser.class,
+      class: studentUser.class || studentUser.kelasId,
       category: 'motivasi',
       description: `[Deteksi dini] Perlu konfirmasi wali kelas: ${reasons.join(' dan ')}.`,
       urgency: 'penting',
