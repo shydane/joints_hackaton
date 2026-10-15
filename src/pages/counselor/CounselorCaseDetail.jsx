@@ -33,6 +33,17 @@ const STATUS_LABELS = {
   eskalasi_eksternal: 'Eskalasi Eksternal',
 }
 
+const normalizeCategory = value => {
+  if (Array.isArray(value)) return value.map(normalizeCategory).find(Boolean) || ''
+  return typeof value === 'string' ? value.trim().toLowerCase() : ''
+}
+
+const hasEconomicCategory = value => (
+  Array.isArray(value)
+    ? value.some(hasEconomicCategory)
+    : normalizeCategory(value) === 'ekonomi'
+)
+
 export default function CounselorCaseDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -54,7 +65,9 @@ export default function CounselorCaseDetail() {
   const latestAcademicPeriod = [...studentHistory].reverse().find(item => item.periode)
 
   const [assessmentNote, setAssessmentNote] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState(report?.category || 'lainnya')
+  const [selectedCategory, setSelectedCategory] = useState(
+    normalizeCategory(report?.category || report?.kategori || report?.tindakLanjut) || 'lainnya',
+  )
   const [assessmentVisible, setAssessmentVisible] = useState(false)
   const [sessionNote, setSessionNote] = useState('')
   const [sessionSchedule, setSessionSchedule] = useState('')
@@ -82,8 +95,12 @@ export default function CounselorCaseDetail() {
   }, [actionFeedback])
 
   useEffect(() => {
-    if (report) setSelectedCategory(report.category || 'lainnya')
-  }, [report?.id, report?.category])
+    if (report) {
+      setSelectedCategory(
+        normalizeCategory(report.category || report.kategori || report.tindakLanjut) || 'lainnya',
+      )
+    }
+  }, [report?.id, report?.category, report?.kategori, report?.tindakLanjut])
 
   if (!report) {
     return (
@@ -98,9 +115,9 @@ export default function CounselorCaseDetail() {
   const isClosed = ['selesai', 'eskalasi_eksternal'].includes(report.status)
   const mayEvaluate = report.status === 'pendampingan' && !isClosed
   const needsExternalEscalation = report.sessionCount >= 3 && mayEvaluate
-  const currentCategory = report.followUp
-    ? CATEGORY_OPTIONS.find(option => option.id === report.category)?.id || report.category
-    : report.category
+  const currentCategory = normalizeCategory(
+    report.category || report.kategori || report.tindakLanjut,
+  ) || selectedCategory
 
   const handleAssessment = () => {
     const note = assessmentNote.trim()
@@ -312,7 +329,12 @@ export default function CounselorCaseDetail() {
         />
       )}
 
-      {(report.category === 'ekonomi' || selectedCategory === 'ekonomi') && (
+      {(
+        hasEconomicCategory(report.category) ||
+        hasEconomicCategory(report.kategori) ||
+        hasEconomicCategory(report.tindakLanjut) ||
+        normalizeCategory(selectedCategory) === 'ekonomi'
+      ) && (
         <EconomicReferralWhatsApp
           key={report.id}
           studentName={report.anonymous ? '' : report.studentName || ''}

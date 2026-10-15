@@ -813,6 +813,7 @@ export function AppProvider({ children }) {
   }, [currentUser, escalateToBK])
 
   const bkAsesmen = useCallback((reportId, catatan, jenisMasalah, visibleToStudent = true) => {
+    const category = typeof jenisMasalah === 'string' ? jenisMasalah.trim().toLowerCase() : ''
     const followUpByCategory = {
       ekonomi: 'beasiswa/bantuan desa',
       bullying: 'pendampingan mental',
@@ -824,8 +825,9 @@ export function AppProvider({ children }) {
       content: catatan,
       visibleToStudent,
     }, {
-      category: jenisMasalah,
-      followUp: followUpByCategory[jenisMasalah] || 'pendampingan mental',
+      category,
+      tindakLanjut: category,
+      followUp: followUpByCategory[category] || 'pendampingan mental',
     })
   }, [currentUser, updateReportStatus])
 
